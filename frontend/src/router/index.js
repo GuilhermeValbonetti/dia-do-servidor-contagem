@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import InicioView from '../views/inicio/InicioView.vue'
 import CredenciamentoView from '../views/credenciamento/CredenciamentoView.vue'
+import SorteioView from '../views/sorteio/SorteioView.vue'
+import VencedoresView from '../views/vencedores/VencedoresView.vue'
 
 const EmptyView = {
   render: () => null,
@@ -12,8 +14,8 @@ const router = createRouter({
   routes: [
     { path: '/', component: InicioView },
     { path: '/credenciamento', component: CredenciamentoView },
-    { path: '/sorteio', component: EmptyView },
-    { path: '/vencedores', component: EmptyView },
+    { path: '/sorteio', component: SorteioView },
+    { path: '/vencedores', component: VencedoresView },
     { path: '/premios', component: EmptyView },
     { path: '/guia', component: EmptyView },
   ],

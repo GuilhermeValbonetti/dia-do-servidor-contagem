@@ -1,0 +1,847 @@
+.draw-icon-library {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.draw-view {
+  width: 100%;
+  max-width: 1390px;
+  margin: 0 auto;
+  padding: 22px 16px 80px;
+}
+
+.draw-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 19px;
+}
+
+.draw-eyebrow {
+  margin: 0 0 7px;
+  color: var(--azul);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+}
+
+.draw-page-title {
+  margin: 0 0 7px;
+  font-size: clamp(26px, 4.5vw, 35px);
+  font-weight: 830;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.draw-page-description {
+  max-width: 650px;
+  margin: 0;
+  color: #65758a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.draw-demo-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 11px;
+  border: 1px solid #f1d98e;
+  border-radius: 100px;
+  background: #fff7df;
+  color: #795b16;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.draw-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.draw-stage-column {
+  display: grid;
+  min-width: 0;
+  grid-row: 2;
+  gap: 16px;
+}
+
+.draw-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  grid-row: 1;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(19, 50, 84, 0.055);
+}
+
+.draw-icon {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.draw-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.draw-panel-title .draw-icon {
+  color: var(--azul);
+}
+
+.draw-panel-subtitle {
+  margin: 7px 0 0;
+  color: #65758a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.draw-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.draw-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 11px 7px;
+  border: 1px solid #e8edf4;
+  border-radius: 11px;
+  background: #f8fbfe;
+  text-align: center;
+}
+
+.draw-stat span {
+  font-size: 10px;
+  line-height: 1.28;
+}
+
+.draw-stat strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.draw-stat-eligible {
+  border-color: #d7e9df;
+  background: #f1faf5;
+  color: #226f4a;
+}
+
+.draw-control-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 17px;
+}
+
+.draw-control-section > label {
+  color: #33485d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draw-control-section > label span {
+  color: #8b98a7;
+  font-weight: 500;
+}
+
+.draw-control-section select {
+  width: 100%;
+  min-width: 0;
+  min-height: 45px;
+  padding: 10px 12px;
+  border: 1px solid #d8e2ec;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.draw-control-section select:focus-visible {
+  border-color: #2485ca;
+  box-shadow: 0 0 0 3px #2485ca22;
+}
+
+.draw-control-section select:disabled {
+  background: #f5f7fa;
+  color: #718399;
+}
+
+.draw-field-note {
+  margin: -3px 0 2px;
+  color: #65758a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.draw-start-button {
+  display: inline-flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 16px;
+  border: 1px solid #e7b833;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f4cb53, #e9b62f);
+  color: #273b57;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    transform 0.18s,
+    box-shadow 0.18s;
+  box-shadow: 0 8px 18px #ce921c29;
+}
+
+.draw-start-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ffdc70, #f1c441);
+  transform: translateY(-1px);
+}
+
+.draw-start-button:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.draw-start-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.draw-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 2px;
+  padding: 11px 12px;
+  border: 1px solid #dcecf8;
+  border-radius: 12px;
+  background: #eff8ff;
+  color: #45637e;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.draw-notice .draw-icon {
+  width: 17px;
+  height: 17px;
+  color: #0b70b6;
+}
+
+.draw-notice p {
+  margin: 0;
+}
+
+.draw-notice strong {
+  color: #1c507e;
+}
+
+.draw-no-eligible {
+  margin: -3px 0 0;
+  color: #8b681b;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.draw-projector-note {
+  display: grid;
+  gap: 5px;
+  margin-top: 16px;
+  padding: 13px;
+  border: 1px solid #e0e9f5;
+  border-radius: 13px;
+  background: #f7faff;
+}
+
+.draw-projector-note > span {
+  color: #296a94;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.draw-projector-note strong {
+  color: #263b55;
+  font-size: 12px;
+}
+
+.draw-projector-note p {
+  margin: 0;
+  color: #65758a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.draw-demo-note {
+  margin: 12px 0 0;
+  color: #75849a;
+  font-size: 10px;
+  text-align: center;
+}
+
+.draw-stage {
+  position: relative;
+  display: flex;
+  min-height: 480px;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 24px 18px 28px;
+  isolation: isolate;
+  border: 1px solid #2c5892;
+  border-radius: 19px;
+  background: radial-gradient(ellipse at 50% 47%, #1d639f 0%, #0b356b 60%, #0c224a 100%);
+  box-shadow: 0 18px 34px #0c376c1c;
+  color: #fff;
+}
+
+.draw-stage::before {
+  position: absolute;
+  z-index: -1;
+  inset: 9% 10%;
+  border: 1px solid #ffffff12;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 35px #ffffff06,
+    0 0 0 75px #ffffff04;
+  content: '';
+  pointer-events: none;
+}
+
+.draw-stage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.draw-stage-pill,
+.draw-stage-count {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #ffffff32;
+  border-radius: 100px;
+  background: #ffffff12;
+  color: #e7f1fc;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.draw-stage-pill {
+  padding: 7px 10px;
+  letter-spacing: 0.08em;
+}
+
+.draw-stage-count {
+  gap: 5px;
+  padding: 7px 9px;
+}
+
+.draw-stage-count strong {
+  color: #ffe18b;
+}
+
+.draw-stage-intro {
+  margin: 25px 0 14px;
+  color: #ffdd84;
+  font-size: clamp(12px, 1.5vw, 17px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-shadow: 0 2px 15px #ffc24c44;
+}
+
+.draw-bingo-center {
+  position: relative;
+  display: grid;
+  width: clamp(208px, 23vw, 295px);
+  aspect-ratio: 1;
+  flex: none;
+  place-items: center;
+  align-self: center;
+}
+
+.draw-bingo-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed #ffd977a6;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 15px #ffdd8b0a,
+    0 0 0 30px #ffdd8b08;
+  animation: draw-ring-turn 30s linear infinite;
+}
+
+.draw-bingo-ring::before,
+.draw-bingo-ring::after {
+  position: absolute;
+  color: #ffd86e;
+  content: '✦';
+}
+
+.draw-bingo-ring::before {
+  top: 6%;
+  left: 10%;
+  font-size: 24px;
+}
+
+.draw-bingo-ring::after {
+  right: 9%;
+  bottom: 9%;
+  font-size: 18px;
+}
+
+.draw-bingo-ball {
+  display: flex;
+  width: 81%;
+  height: 81%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fff9d8 0%,
+    #fff0a3 27%,
+    #f7be37 58%,
+    #c9860c 100%
+  );
+  box-shadow:
+    inset -15px -17px 25px #d98e1291,
+    inset 5px 5px 14px #ffffff,
+    0 24px 48px #030e2880,
+    0 0 55px #ffd65b2a;
+  color: #113764;
+}
+
+.draw-ball-label,
+.draw-ball-caption {
+  font-size: clamp(9px, 1vw, 12px);
+  font-weight: 850;
+  letter-spacing: 0.16em;
+}
+
+.draw-ball-number {
+  min-height: 1.12em;
+  font-size: clamp(46px, 7vw, 82px);
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+}
+
+.draw-stage-caption {
+  max-width: 93%;
+  margin: 18px auto 0;
+  color: #fff;
+  font-size: clamp(21px, 2.55vw, 32px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.16;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.draw-stage-subtitle {
+  max-width: 90%;
+  margin: 11px auto 0;
+  color: #d2e3f5;
+  font-size: clamp(12px, 1.25vw, 15px);
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.draw-stage.has-winner .draw-stage-intro {
+  color: #fff0b7;
+}
+
+.draw-stage.is-drawing .draw-stage-intro {
+  animation: draw-stage-pulse 1s ease-in-out infinite alternate;
+}
+
+.draw-stage.is-drawing .draw-bingo-ball {
+  animation: draw-ball-bounce 0.24s ease-in-out infinite alternate;
+}
+
+.draw-stage-prize {
+  display: flex;
+  max-width: min(100%, 480px);
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 22px auto 0;
+  padding: 11px 17px;
+  border: 1px solid #ffe4a366;
+  border-radius: 100px;
+  background: #f2b9381d;
+  color: #ffe8ad;
+  font-size: clamp(11px, 1.25vw, 14px);
+  font-weight: 850;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.draw-stage-prize .draw-icon {
+  width: 17px;
+  height: 17px;
+  color: #ffcf68;
+}
+
+.draw-confetti {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.draw-confetti span {
+  position: absolute;
+  top: -5vh;
+  left: var(--confetti-x);
+  width: 8px;
+  height: 15px;
+  background: var(--confetti-color);
+  opacity: 0.9;
+  transform: rotate(var(--confetti-rotation));
+  animation: draw-confetti-fall var(--confetti-duration) ease-in var(--confetti-delay) forwards;
+}
+
+.draw-history {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(19, 50, 84, 0.055);
+}
+
+.draw-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.draw-history-heading h2 {
+  margin: 0;
+  color: #1a304c;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.draw-history-heading p {
+  margin: 5px 0 0;
+  color: #65758a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.draw-history-heading > span {
+  flex: none;
+  color: #63778d;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.draw-history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draw-history-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.draw-history-item:last-child {
+  border-bottom: 0;
+}
+
+.draw-history-number {
+  display: grid;
+  min-width: 43px;
+  min-height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef5fc;
+  color: #27608b;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.draw-history-item > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.draw-history-item > div strong {
+  color: #1a304c;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.draw-history-item > div span,
+.draw-history-no-prize {
+  color: #63778d;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.draw-history-prize {
+  display: inline-flex;
+  grid-column: 2;
+  align-items: center;
+  gap: 6px;
+  color: #89661f;
+  font-size: 11px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.draw-history-prize .draw-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.draw-history-no-prize {
+  grid-column: 2;
+}
+
+.draw-confirm-summary {
+  text-align: left;
+}
+
+.draw-confirm-summary p {
+  margin: 0;
+  padding: 9px 0;
+  border-bottom: 1px solid #e8edf4;
+  color: #52677d;
+  font-size: 13px;
+}
+
+.draw-confirm-summary p:last-child {
+  padding-bottom: 0;
+  border: 0;
+  color: #65758a;
+  font-size: 12px;
+}
+
+.draw-confirm-summary strong {
+  color: #263b55;
+}
+
+@keyframes draw-ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes draw-stage-pulse {
+  from {
+    opacity: 0.65;
+    text-shadow: none;
+  }
+
+  to {
+    opacity: 1;
+    text-shadow: 0 0 28px #fbd67f8a;
+  }
+}
+
+@keyframes draw-ball-bounce {
+  from {
+    transform: translateY(-6px) rotate(-3deg);
+  }
+
+  to {
+    transform: translateY(7px) rotate(3deg);
+  }
+}
+
+@keyframes draw-confetti-fall {
+  0% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--confetti-drift), 115vh) rotate(720deg);
+  }
+}
+
+@media (min-width: 550px) {
+  .draw-view {
+    padding: 28px 28px 80px;
+  }
+}
+
+@media (min-width: 850px) {
+  .draw-view {
+    padding: 34px 30px 65px;
+  }
+
+  .draw-layout {
+    grid-template-columns: minmax(0, 1.7fr) minmax(285px, 0.83fr);
+    gap: 17px;
+    align-items: stretch;
+  }
+
+  .draw-stage-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .draw-control {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    padding: 22px 20px;
+  }
+
+  .draw-stage {
+    min-height: 590px;
+    padding: 29px 22px 34px;
+  }
+
+  .draw-stage-intro {
+    margin-top: 47px;
+  }
+
+  .draw-stage-caption {
+    margin-top: 24px;
+  }
+
+  .draw-bingo-center {
+    width: clamp(215px, 21vw, 292px);
+  }
+}
+
+@media (min-width: 1150px) {
+  .draw-view {
+    padding: 39px 45px 70px;
+  }
+}
+
+@media (min-width: 1500px) {
+  .draw-stage {
+    min-height: 640px;
+  }
+
+  .draw-bingo-center {
+    width: 300px;
+  }
+}
+
+@media (max-width: 849px) {
+  .draw-layout {
+    gap: 15px;
+  }
+
+  .draw-control {
+    grid-row: 1;
+  }
+
+  .draw-stage-column {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 639px) {
+  .draw-demo-tag {
+    display: none;
+  }
+}
+
+@media (max-width: 540px) {
+  .draw-control {
+    padding: 17px 16px;
+  }
+
+  .draw-stage {
+    min-height: 435px;
+    padding: 20px 12px 25px;
+  }
+
+  .draw-stage-intro {
+    margin-top: 24px;
+  }
+
+  .draw-bingo-center {
+    width: min(215px, 62vw);
+  }
+
+  .draw-ball-number {
+    font-size: clamp(42px, 13vw, 64px);
+  }
+
+  .draw-stage-caption {
+    font-size: 23px;
+  }
+
+  .draw-stage-prize {
+    margin-top: 17px;
+  }
+
+  .draw-history-heading {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .draw-history-item {
+    padding: 13px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-bingo-ring,
+  .draw-stage.is-drawing .draw-stage-intro,
+  .draw-stage.is-drawing .draw-bingo-ball {
+    animation: none;
+  }
+
+  .draw-confetti {
+    display: none;
+  }
+
+  .draw-start-button {
+    transition: none;
+  }
+}
