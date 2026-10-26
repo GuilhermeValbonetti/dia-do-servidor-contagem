@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import crestUrl from '../assets/images/brasao-contagem.png'
+import crestUrl from '../../assets/images/brasao-contagem.png'
 import './InicioView.css'
 
 const winners = ref([])
