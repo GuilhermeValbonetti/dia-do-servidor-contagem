@@ -136,7 +136,6 @@ function accessibleLabel(item) {
         <p class="brand-name">Dia do Servidor</p>
       </div>
     </div>
-    <span class="demo-tag">DEMO</span>
   </header>
 
   <nav class="mobile-nav" aria-label="Navegação principal">

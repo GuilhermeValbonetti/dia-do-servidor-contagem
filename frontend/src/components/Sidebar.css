@@ -242,29 +242,6 @@
   text-underline-offset: 3px;
 }
 
-.side-footer {
-  margin-top: 20px;
-  padding-top: 19px;
-  border-top: 1px solid #ffffff21;
-  color: #c1d2ea;
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.side-footer strong {
-  color: #fff;
-}
-
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
-  border-radius: 100%;
-  background: #75d3a3;
-  box-shadow: 0 0 0 4px #75d3a319;
-}
-
 .mobile-head {
   display: flex;
   align-items: center;
@@ -451,9 +428,5 @@
 
   .sidebar-guide-steps {
     gap: 7px;
-  }
-
-  .side-footer {
-    margin-top: 12px;
   }
 }
