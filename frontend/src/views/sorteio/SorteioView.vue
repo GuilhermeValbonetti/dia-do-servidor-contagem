@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import Swal from 'sweetalert2'
+import { RouterLink } from 'vue-router'
 import './SorteioView.css'
 
 // Esta lista é independente do credenciamento até a futura integração com o back-end.
@@ -67,7 +68,12 @@ const confirming = ref(false)
 const ballNumber = ref('?')
 const showConfetti = ref(false)
 const confettiRound = ref(0)
+const celebrationDialog = ref(null)
+const celebrationDraws = ref([])
+const showCelebrationConfetti = ref(false)
+const celebrationRound = ref(0)
 let confettiTimeout
+let celebrationTimeout
 
 const eligibleParticipants = computed(() =>
   participants.value.filter((person) => person.presente && !person.contemplado),
@@ -91,6 +97,28 @@ const confettiPieces = Array.from({ length: 300 }, (_, index) => ({
 
 function institutionName(origin) {
   return origin === 'camara' ? 'Câmara Municipal de Contagem' : 'Prefeitura Municipal de Contagem'
+}
+
+async function celebrate(selectedDraws) {
+  celebrationDraws.value = selectedDraws
+  celebrationRound.value += 1
+  showCelebrationConfetti.value = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  window.clearTimeout(celebrationTimeout)
+  if (showCelebrationConfetti.value) {
+    celebrationTimeout = window.setTimeout(() => {
+      showCelebrationConfetti.value = false
+    }, 5200)
+  }
+
+  await nextTick()
+  if (!celebrationDialog.value?.open) celebrationDialog.value?.showModal()
+}
+
+function clearCelebration() {
+  window.clearTimeout(celebrationTimeout)
+  showCelebrationConfetti.value = false
+  celebrationDraws.value = []
 }
 
 async function confirmDraw() {
@@ -221,6 +249,12 @@ async function confirmDraw() {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
     </symbol>
+    <symbol id="draw-arrow" viewBox="0 0 24 24">
+      <path d="M4 12h16m-7-7 7 7-7 7" />
+    </symbol>
+    <symbol id="draw-close" viewBox="0 0 24 24">
+      <path d="m18 6-12 12M6 6l12 12" />
+    </symbol>
   </svg>
 
   <div class="draw-view">
@@ -229,7 +263,8 @@ async function confirmDraw() {
         <p class="draw-eyebrow">O GRANDE MOMENTO</p>
         <h1 class="draw-page-title">Hora do sorteio!</h1>
         <p class="draw-page-description">
-Uma experiência especial, justa e emocionante para os participantes.        </p>
+          Uma experiência especial, justa e emocionante para os participantes.
+        </p>
       </div>
       <span class="draw-demo-tag">DEMONSTRAÇÃO · DADOS FICTÍCIOS SEM SINCRONIZAÇÃO</span>
     </header>
@@ -302,28 +337,48 @@ Uma experiência especial, justa e emocionante para os participantes.        </p
           </div>
         </div>
 
-        <section v-if="draws.length" class="draw-history" aria-labelledby="draw-history-title">
-          <header class="draw-history-heading">
-            <div>
-              <h2 id="draw-history-title">Resultados desta demonstração</h2>
-              <p>Os resultados ficam registrados enquanto esta página estiver ativa.</p>
-            </div>
-            <span>{{ draws.length }} {{ draws.length === 1 ? 'sorteio' : 'sorteios' }}</span>
+        <section v-if="latestDraw" class="draw-winner-result" aria-labelledby="draw-winner-title">
+          <header class="draw-winner-top">
+            <span class="draw-winner-trophy">
+              <svg class="draw-icon" aria-hidden="true"><use href="#draw-trophy" /></svg>
+            </span>
+            <strong id="draw-winner-title">PARABÉNS, TEMOS UM CONTEMPLADO!</strong>
           </header>
-          <ol class="draw-history-list">
-            <li v-for="draw in draws" :key="draw.numero" class="draw-history-item">
-              <span class="draw-history-number">#{{ String(draw.numero).padStart(3, '0') }}</span>
-              <div>
-                <strong>{{ draw.nome }}</strong>
-                <span>{{ draw.matricula }} · {{ institutionName(draw.origem) }}</span>
-              </div>
-              <span v-if="draw.premioNome" class="draw-history-prize">
-                <svg class="draw-icon" aria-hidden="true"><use href="#draw-gift" /></svg>
-                {{ draw.premioNome }}
-              </span>
-              <span v-else class="draw-history-no-prize">Sem prêmio</span>
-            </li>
-          </ol>
+          <h2 class="draw-winner-name">{{ latestDraw.nome }}</h2>
+          <p class="draw-winner-meta">
+            Matrícula {{ latestDraw.matricula }} · {{ institutionName(latestDraw.origem) }}
+          </p>
+          <p v-if="latestDraw.premioNome" class="draw-winner-prize">
+            <svg class="draw-icon" aria-hidden="true"><use href="#draw-gift" /></svg>
+            {{ latestDraw.premioNome }}
+          </p>
+          <p v-else class="draw-winner-prize is-no-prize">Sorteio realizado sem prêmio associado</p>
+          <div class="draw-winner-actions">
+            <button class="draw-celebrate-button" type="button" @click="celebrate([latestDraw])">
+              <svg class="draw-icon" aria-hidden="true"><use href="#draw-sparkles" /></svg>
+              Celebrar ganhador
+            </button>
+            <button
+              class="draw-celebrate-all-button"
+              type="button"
+              @click="celebrate([...draws].reverse())"
+            >
+              <svg class="draw-icon" aria-hidden="true"><use href="#draw-users" /></svg>
+              Celebrar todos ({{ draws.length }})
+            </button>
+            <RouterLink class="draw-history-link" to="/vencedores">
+              Ver no histórico
+              <svg class="draw-icon" aria-hidden="true"><use href="#draw-arrow" /></svg>
+            </RouterLink>
+          </div>
+        </section>
+
+        <section v-else class="draw-winner-empty" aria-label="Resultado do sorteio">
+          <span class="draw-empty-trophy">
+            <svg class="draw-icon" aria-hidden="true"><use href="#draw-trophy" /></svg>
+          </span>
+          <strong>Nenhum contemplado ainda</strong>
+          <p>Após o primeiro sorteio, o resultado aparecerá aqui.</p>
         </section>
       </section>
 
@@ -416,4 +471,113 @@ Uma experiência especial, justa e emocionante para os participantes.        </p
       ></span>
     </div>
   </Teleport>
+
+  <dialog
+    ref="celebrationDialog"
+    class="draw-celebration-dialog"
+    aria-labelledby="draw-celebration-title"
+    aria-describedby="draw-celebration-description"
+    @close="clearCelebration"
+  >
+    <div
+      v-if="showCelebrationConfetti"
+      :key="celebrationRound"
+      class="draw-celebration-confetti"
+      aria-hidden="true"
+    >
+      <span
+        v-for="piece in confettiPieces"
+        :key="piece.id"
+        :style="{
+          '--confetti-x': piece.x,
+          '--confetti-delay': piece.delay,
+          '--confetti-duration': piece.duration,
+          '--confetti-color': piece.color,
+          '--confetti-rotation': piece.rotation,
+          '--confetti-drift': piece.drift,
+        }"
+      ></span>
+    </div>
+    <div class="draw-celebration-shell">
+      <header class="draw-celebration-top">
+        <span class="draw-celebration-kicker">
+          <svg class="draw-icon" aria-hidden="true"><use href="#draw-sparkles" /></svg>
+          {{
+            celebrationDraws.length > 1 ? 'Dia do Servidor · Contagem' : 'Celebração do ganhador'
+          }}
+        </span>
+        <button
+          class="draw-celebration-close"
+          type="button"
+          aria-label="Fechar comemoração"
+          autofocus
+          @click="celebrationDialog?.close()"
+        >
+          <svg class="draw-icon" aria-hidden="true"><use href="#draw-close" /></svg>
+        </button>
+      </header>
+
+      <template v-if="celebrationDraws.length === 1">
+        <div class="draw-celebration-orb" aria-hidden="true">
+          <svg class="draw-icon" aria-hidden="true"><use href="#draw-trophy" /></svg>
+        </div>
+        <h2 id="draw-celebration-title" class="draw-celebration-name">
+          {{ celebrationDraws[0].nome }}
+        </h2>
+        <p id="draw-celebration-description" class="draw-celebration-meta">
+          Matrícula {{ celebrationDraws[0].matricula }} ·
+          {{ institutionName(celebrationDraws[0].origem) }}
+        </p>
+        <div
+          class="draw-celebration-prize"
+          :class="{ 'is-no-prize': !celebrationDraws[0].premioNome }"
+        >
+          <svg class="draw-icon" aria-hidden="true"><use href="#draw-gift" /></svg>
+          {{
+            celebrationDraws[0].premioNome
+              ? `Prêmio do sorteio: ${celebrationDraws[0].premioNome}`
+              : 'Sorteio realizado sem prêmio associado'
+          }}
+        </div>
+        <p class="draw-celebration-copy">
+          Um momento especial para celebrar quem faz nossa cidade acontecer todos os dias.
+        </p>
+      </template>
+
+      <template v-else>
+        <div class="draw-collective-heading">
+          <span class="draw-collective-medal" aria-hidden="true">
+            <svg class="draw-icon" aria-hidden="true"><use href="#draw-users" /></svg>
+          </span>
+          <h2 id="draw-celebration-title">Uma salva de palmas para todos!</h2>
+          <p id="draw-celebration-description">
+            Celebrando os {{ celebrationDraws.length }} contemplados desta festa.
+          </p>
+        </div>
+        <div class="draw-collective-grid" role="list" aria-label="Todos os contemplados">
+          <article
+            v-for="draw in celebrationDraws"
+            :key="draw.numero"
+            class="draw-collective-card"
+            role="listitem"
+          >
+            <small>SORTEIO #{{ String(draw.numero).padStart(3, '0') }}</small>
+            <strong>{{ draw.nome }}</strong>
+            <span>
+              {{ draw.premioNome ? `Prêmio: ${draw.premioNome}` : 'Sorteio sem prêmio associado' }}
+            </span>
+          </article>
+        </div>
+        <p class="draw-collective-note">
+          Cada nome representa um momento especial. Todos merecem reconhecimento!
+        </p>
+      </template>
+
+      <div class="draw-celebration-actions">
+        <button class="draw-celebration-dismiss" type="button" @click="celebrationDialog?.close()">
+          Voltar ao sorteio
+        </button>
+      </div>
+    </div>
+  </dialog>
 </template>
