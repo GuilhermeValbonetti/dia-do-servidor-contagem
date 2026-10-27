@@ -233,6 +233,36 @@
   opacity: 0.58;
 }
 
+.draw-prepare-button {
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #d5e0ec;
+  border-radius: 11px;
+  background: #f7faff;
+  color: #244664;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.draw-prepare-button:hover:not(:disabled) {
+  border-color: #9dc3e2;
+  background: #eff8ff;
+}
+
+.draw-prepare-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.draw-prepare-note {
+  margin: -4px 0 0;
+  color: #65758a;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .draw-notice {
   display: flex;
   align-items: flex-start;
@@ -269,9 +299,11 @@
   text-align: center;
 }
 
-.draw-projector-note {
+.draw-projector-tools {
   display: grid;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   margin-top: 16px;
   padding: 13px;
   border: 1px solid #e0e9f5;
@@ -279,23 +311,74 @@
   background: #f7faff;
 }
 
-.draw-projector-note > span {
+.draw-projector-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.draw-projector-copy > span {
   color: #296a94;
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
 
-.draw-projector-note strong {
+.draw-projector-copy strong {
   color: #263b55;
   font-size: 12px;
 }
 
-.draw-projector-note p {
+.draw-projector-copy p {
   margin: 0;
   color: #65758a;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.draw-projector-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border: 1px solid #d5e0ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #244664;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draw-projector-button:hover:not(:disabled) {
+  border-color: #9dc3e2;
+  background: #eff8ff;
+}
+
+.draw-projector-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.draw-projector-button .draw-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.draw-projector-fallback {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #65758a;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.draw-projector-fallback a {
+  color: #0868af;
+  font-weight: 800;
 }
 
 .draw-demo-note {
@@ -1144,6 +1227,15 @@
 @media (max-width: 540px) {
   .draw-control {
     padding: 17px 16px;
+  }
+
+  .draw-projector-tools {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .draw-projector-button {
+    width: 100%;
   }
 
   .draw-stage {

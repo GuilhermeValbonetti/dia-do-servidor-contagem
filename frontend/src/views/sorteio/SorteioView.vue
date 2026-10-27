@@ -1,8 +1,20 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import './SorteioView.css'
+
+const router = useRouter()
+const projectionSupported = typeof BroadcastChannel !== 'undefined'
+const projectionSessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const projectionUrl = router.resolve({
+  name: 'telao',
+  query: { session: projectionSessionId },
+}).href
+const projectionLinkVisible = ref(false)
+const projectionChannel = projectionSupported ? new BroadcastChannel('dia-do-servidor-telao') : null
+let projectionChannelActive = true
+let projectionWindow = null
 
 // Esta lista é independente do credenciamento até a futura integração com o back-end.
 const participants = ref([
@@ -65,6 +77,7 @@ const draws = ref([])
 const selectedPrizeId = ref('')
 const drawing = ref(false)
 const confirming = ref(false)
+const projectionPhase = ref('ready')
 const ballNumber = ref('?')
 const showConfetti = ref(false)
 const confettiRound = ref(0)
@@ -74,6 +87,60 @@ const showCelebrationConfetti = ref(false)
 const celebrationRound = ref(0)
 let confettiTimeout
 let celebrationTimeout
+
+function sendProjectionState(snapshot = false) {
+  if (!projectionChannel || !projectionChannelActive) return
+
+  const phase = projectionPhase.value
+  const draw = latestDraw.value
+  const projectionDraw = draw
+    ? {
+        numero: draw.numero,
+        participanteId: draw.participanteId,
+        nome: draw.nome,
+        matricula: draw.matricula,
+        origem: draw.origem,
+        premioId: draw.premioId,
+        premioNome: draw.premioNome,
+      }
+    : null
+  projectionChannel.postMessage({
+    type: 'state',
+    sessionId: projectionSessionId,
+    phase,
+    snapshot,
+    drawNumber:
+      phase === 'drawing' || phase === 'preparing'
+        ? nextDrawNumber.value
+        : (latestDraw.value?.numero ?? nextDrawNumber.value),
+    ballNumber:
+      phase === 'drawing'
+        ? ballNumber.value
+        : phase === 'winner'
+          ? latestDraw.value.matricula
+          : '?',
+    ...(phase === 'winner' ? { draw: projectionDraw } : {}),
+    ...(phase === 'preparing' ? { lastDraw: projectionDraw } : {}),
+  })
+}
+
+function openProjection() {
+  if (projectionWindow && !projectionWindow.closed) {
+    projectionWindow.focus()
+    return
+  }
+
+  projectionWindow = window.open(projectionUrl, `dia-do-servidor-telao-${projectionSessionId}`)
+  projectionLinkVisible.value = !projectionWindow
+}
+
+if (projectionChannel) {
+  projectionChannel.onmessage = ({ data }) => {
+    if (data?.type === 'snapshot-request' && data.sessionId === projectionSessionId) {
+      sendProjectionState(true)
+    }
+  }
+}
 
 const eligibleParticipants = computed(() =>
   participants.value.filter((person) => person.presente && !person.contemplado),
@@ -85,6 +152,11 @@ const availablePrizes = computed(() =>
 )
 const nextDrawNumber = computed(() => draws.value.length + 1)
 const latestDraw = computed(() => draws.value.at(-1))
+const canStartDraw = computed(
+  () =>
+    eligibleParticipants.value.length > 0 &&
+    (!latestDraw.value || projectionPhase.value === 'preparing'),
+)
 const confettiPieces = Array.from({ length: 300 }, (_, index) => ({
   id: index,
   x: `${(index * 47) % 100}%`,
@@ -121,8 +193,22 @@ function clearCelebration() {
   celebrationDraws.value = []
 }
 
+function prepareNextDraw() {
+  if (
+    drawing.value ||
+    confirming.value ||
+    !latestDraw.value ||
+    !eligibleParticipants.value.length
+  ) {
+    return
+  }
+
+  projectionPhase.value = 'preparing'
+  sendProjectionState()
+}
+
 async function confirmDraw() {
-  if (drawing.value || confirming.value || !eligibleParticipants.value.length) return
+  if (drawing.value || confirming.value || !canStartDraw.value) return
 
   confirming.value = true
   const selectedPrize = availablePrizes.value.find((prize) => prize.id === selectedPrizeId.value)
@@ -160,10 +246,13 @@ async function confirmDraw() {
     : null
 
   drawing.value = true
+  projectionPhase.value = 'drawing'
   ballNumber.value = '•••'
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const duration = reducedMotion ? 250 : 2800
+
+  sendProjectionState()
 
   if (!reducedMotion) {
     const digitSteps = [1, 3, 7, 9, 3, 7]
@@ -176,6 +265,7 @@ async function confirmDraw() {
         ballNumber.value = digitSteps
           .map((step, position) => (tick * step + position * 2) % 10)
           .join('')
+        sendProjectionState()
         tick += 1
 
         if (elapsed >= duration) {
@@ -208,6 +298,9 @@ async function confirmDraw() {
   selectedPrizeId.value = ''
   ballNumber.value = winner.matricula
   drawing.value = false
+  projectionPhase.value = 'winner'
+
+  sendProjectionState()
 
   window.clearTimeout(confettiTimeout)
   confettiRound.value += 1
@@ -218,6 +311,15 @@ async function confirmDraw() {
     }, 3400)
   }
 }
+
+onBeforeUnmount(() => {
+  projectionChannelActive = false
+  projectionChannel?.close()
+  window.clearTimeout(confettiTimeout)
+  window.clearTimeout(celebrationTimeout)
+})
+
+onMounted(sendProjectionState)
 </script>
 
 <template>
@@ -423,7 +525,7 @@ async function confirmDraw() {
           <button
             class="draw-start-button"
             type="button"
-            :disabled="drawing || confirming || !eligibleParticipants.length"
+            :disabled="drawing || confirming || !canStartDraw"
             @click="confirmDraw"
           >
             <svg class="draw-icon" aria-hidden="true"><use href="#draw-sparkles" /></svg>
@@ -435,6 +537,21 @@ async function confirmDraw() {
                   : 'Iniciar sorteio'
             }}
           </button>
+          <button
+            v-if="latestDraw && projectionPhase === 'winner'"
+            class="draw-prepare-button"
+            type="button"
+            :disabled="drawing || confirming || !eligibleParticipants.length"
+            @click="prepareNextDraw"
+          >
+            Preparar próximo sorteio
+          </button>
+          <p
+            v-if="latestDraw && projectionPhase === 'winner' && eligibleParticipants.length"
+            class="draw-prepare-note"
+          >
+            O resultado atual permanece visível no Telão até preparar a próxima rodada.
+          </p>
 
           <div class="draw-notice" role="note">
             <svg class="draw-icon" aria-hidden="true"><use href="#draw-shield" /></svg>
@@ -445,10 +562,34 @@ async function confirmDraw() {
           </p>
         </div>
 
-        <div class="draw-projector-note" role="note">
-          <span>EXIBIÇÃO OPCIONAL</span>
-          <strong>Modo Telão em desenvolvimento</strong>
-          <p>A apresentação do sorteio permanece nesta página nesta etapa.</p>
+        <div class="draw-projector-tools" aria-label="Exibição opcional em telão">
+          <div class="draw-projector-copy">
+            <span>EXIBIÇÃO OPCIONAL</span>
+            <strong>Vai usar TV ou projetor?</strong>
+            <p>Abra uma janela para apresentar o sorteio ao público.</p>
+          </div>
+          <button
+            class="draw-projector-button"
+            type="button"
+            :disabled="!projectionSupported"
+            @click="openProjection"
+          >
+            <svg class="draw-icon" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="13" rx="2" />
+              <path d="M8 21h8m-4-4v4" />
+            </svg>
+            Abrir Telão
+            <span aria-hidden="true">↗</span>
+          </button>
+          <p v-if="projectionLinkVisible" class="draw-projector-fallback" role="status">
+            A janela foi bloqueada.
+            <a :href="projectionUrl" target="_blank" rel="noopener noreferrer">
+              Abrir Telão em uma nova aba
+            </a>
+          </p>
+          <p v-else-if="!projectionSupported" class="draw-projector-fallback" role="status">
+            Este navegador não oferece suporte à sincronização do Telão.
+          </p>
         </div>
         <p class="draw-demo-note">Demonstração local · Não sincronizada com o Credenciamento</p>
       </aside>
@@ -567,7 +708,7 @@ async function confirmDraw() {
               {{ draw.premioNome ? `Prêmio: ${draw.premioNome}` : 'Sorteio sem prêmio associado' }}
             </span>
           </article>
-        </div>  
+        </div>
         <p class="draw-collective-note">
           Cada nome representa um momento especial. Todos merecem reconhecimento!
         </p>

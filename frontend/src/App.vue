@@ -1,10 +1,13 @@
 <script setup>
+import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
+
+const route = useRoute()
 </script>
 
 <template>
-  <div class="app-shell">
-    <Sidebar />
+  <div class="app-shell" :class="{ 'app-shell--telao': route.path === '/telao' }">
+    <Sidebar v-if="route.path !== '/telao'" />
     <main class="main-content">
       <RouterView />
     </main>
@@ -25,6 +28,10 @@ import Sidebar from './components/Sidebar.vue'
   .app-shell {
     display: grid;
     grid-template-columns: 236px minmax(0, 1fr);
+  }
+
+  .app-shell--telao {
+    display: block;
   }
 }
 
