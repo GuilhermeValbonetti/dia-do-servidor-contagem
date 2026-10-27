@@ -24,9 +24,11 @@ O projeto tem como objetivo oferecer uma solução simples, intuitiva e responsi
 **Back-end**
 - Node.js
 - Express.js
+- JavaScript com ES Modules
+- dotenv
 
 **Banco de dados**
-- SQLite (previsto, sujeito à definição da infraestrutura)
+- SQLite com better-sqlite3
 
 ## 🎨 Interface
 
@@ -38,7 +40,18 @@ A apresentação dos sorteios terá como referência a resolução HD (1280 × 7
 
 🚧 **Em desenvolvimento**
 
-O protótipo inicial foi desenvolvido em HTML, CSS e JavaScript. A próxima etapa consiste na implementação da aplicação com Vue.js e na integração com o back-end.
+O front-end está implementado. A estrutura inicial da API e do banco local está em desenvolvimento; as telas ainda não estão integradas ao back-end.
+
+### Executar o back-end
+
+```powershell
+cd backend
+npm install
+Copy-Item .env.example .env
+npm start
+```
+
+Por padrão, a API fica disponível em `http://127.0.0.1:3000`, e o banco é criado em `backend/data/dia-do-servidor.sqlite`. A rota `GET /api/health` verifica a API e a conexão com o SQLite.
 
 ## 🔒 Segurança
 
