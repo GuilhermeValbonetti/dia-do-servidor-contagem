@@ -18,8 +18,14 @@ const showConfetti = ref(false)
 const confettiRound = ref(0)
 const fullscreen = ref(false)
 const statusMessage = ref('')
+const connectionLost = ref(false)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let confettiTimeout
+let connectionCheckInterval
+let lastOperatorMessageAt = 0
+
+const connectionTimeout = 6000
+const connectionCheckFrequency = 1000
 
 const confettiPieces = Array.from({ length: 180 }, (_, index) => ({
   id: index,
@@ -52,15 +58,31 @@ function celebrate() {
 }
 
 function handleProjectionMessage({ data }) {
+  if (data?.sessionId !== projectionSessionId) return
+
+  if (data.type === 'heartbeat') {
+    const wasDisconnected = connectionLost.value
+    lastOperatorMessageAt = Date.now()
+    connectionLost.value = false
+    if (wasDisconnected) requestSnapshot()
+    return
+  }
+
+  if (data.type === 'operator-disconnected') {
+    markConnectionLost()
+    return
+  }
+
   if (
     data?.type !== 'state' ||
-    data.sessionId !== projectionSessionId ||
     !['ready', 'drawing', 'winner', 'preparing'].includes(data.phase) ||
     (data.phase === 'winner' && !isValidDraw(data.draw))
   ) {
     return
   }
 
+  lastOperatorMessageAt = Date.now()
+  connectionLost.value = false
   const previousPhase = phase.value
   const previousDrawNumber = drawNumber.value
   phase.value = data.phase
@@ -76,10 +98,22 @@ function handleProjectionMessage({ data }) {
   } else if (data.phase === 'preparing') {
     winner.value = null
     lastWinner.value = isValidDraw(data.lastDraw) ? data.lastDraw : null
-  } else {
+  } else if (data.phase === 'ready') {
     winner.value = null
     lastWinner.value = null
+  } else {
+    winner.value = null
   }
+}
+
+function markConnectionLost() {
+  if (connectionLost.value) return
+  connectionLost.value = true
+  phase.value = 'disconnected'
+  winner.value = null
+  ballNumber.value = '?'
+  window.clearTimeout(confettiTimeout)
+  showConfetti.value = false
 }
 
 function requestSnapshot() {
@@ -116,13 +150,18 @@ onMounted(() => {
     statusMessage.value = 'Abra o Telão pelo botão da tela Sorteio para sincronizar a apresentação.'
   } else {
     projectionChannel.addEventListener('message', handleProjectionMessage)
+    lastOperatorMessageAt = Date.now()
     requestSnapshot()
+    connectionCheckInterval = window.setInterval(() => {
+      if (Date.now() - lastOperatorMessageAt >= connectionTimeout) markConnectionLost()
+    }, connectionCheckFrequency)
   }
 
   document.addEventListener('fullscreenchange', updateFullscreenState)
 })
 
 onBeforeUnmount(() => {
+  window.clearInterval(connectionCheckInterval)
   projectionChannel?.close()
   document.removeEventListener('fullscreenchange', updateFullscreenState)
   window.clearTimeout(confettiTimeout)
@@ -149,16 +188,21 @@ onBeforeUnmount(() => {
       <div class="projection-top-actions">
         <span class="projection-label">
           {{
-            phase === 'ready'
-              ? 'AGUARDANDO INÍCIO'
-              : phase === 'drawing'
-                ? 'SORTEIO EM ANDAMENTO'
-                : phase === 'winner'
-                  ? 'RESULTADO DIVULGADO'
-                  : phase === 'preparing'
-                    ? 'AGUARDANDO PRÓXIMO SORTEIO'
-                    : 'CONECTANDO AO SORTEIO'
+            connectionLost
+              ? 'COMUNICAÇÃO INTERROMPIDA'
+              : phase === 'ready'
+                ? 'AGUARDANDO INÍCIO'
+                : phase === 'drawing'
+                  ? 'SORTEIO EM ANDAMENTO'
+                  : phase === 'winner'
+                    ? 'RESULTADO DIVULGADO'
+                    : phase === 'preparing'
+                      ? 'AGUARDANDO PRÓXIMO SORTEIO'
+                      : 'CONECTANDO AO SORTEIO'
           }}
+        </span>
+        <span v-if="connectionLost" class="projection-connection-warning" role="status">
+          Aguardando reconexão do operador
         </span>
         <button class="projection-fullscreen-button" type="button" @click="toggleFullscreen">
           <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -171,7 +215,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <section class="projection-scene" aria-live="polite" aria-atomic="true">
+    <section class="projection-scene">
       <div class="projection-ball-zone" aria-hidden="true">
         <div class="projection-ring"></div>
         <div class="projection-ball">
@@ -240,14 +284,20 @@ onBeforeUnmount(() => {
           A próxima rodada começará quando o operador estiver pronto.
         </p>
         <p v-else-if="phase === 'disconnected'" class="projection-subtitle">
-          Abra o Telão pela tela Sorteio para iniciar a apresentação.
+          {{
+            connectionLost
+              ? 'A apresentação será retomada quando a tela Sorteio se reconectar.'
+              : 'Abra o Telão pela tela Sorteio para iniciar a apresentação.'
+          }}
         </p>
         <p
-          v-if="phase === 'preparing' && lastWinner"
+          v-if="(phase === 'preparing' || phase === 'disconnected') && lastWinner"
           class="projection-last-winner"
-          aria-label="Último contemplado"
+          aria-label="Último resultado recebido"
         >
-          Último contemplado: <strong>{{ lastWinner.nome }}</strong> · Sorteio nº
+          {{ phase === 'disconnected' ? 'Último resultado recebido:' : 'Último contemplado:' }}
+          <strong>{{ lastWinner.nome }}</strong>
+          · Matrícula {{ lastWinner.matricula }} · Sorteio nº
           {{ String(lastWinner.numero).padStart(3, '0') }}
         </p>
         <div v-if="phase === 'winner' && winner?.premioNome" class="projection-prize">
@@ -265,6 +315,13 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </section>
+    <p class="projection-sr-only" aria-live="polite" aria-atomic="true">
+      {{
+        phase === 'winner' && winner
+          ? `Resultado do sorteio ${String(drawNumber).padStart(3, '0')}: ${winner.nome}, matrícula ${winner.matricula}, ${winner.origem === 'camara' ? 'Câmara Municipal de Contagem' : 'Prefeitura Municipal de Contagem'}${winner.premioNome ? `, prêmio: ${winner.premioNome}` : ', sem prêmio associado'}.`
+          : ''
+      }}
+    </p>
 
     <footer class="projection-footer">
       <span><strong>Dia do Servidor</strong> · Contagem</span>

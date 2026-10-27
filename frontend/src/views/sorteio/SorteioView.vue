@@ -15,6 +15,23 @@ const projectionLinkVisible = ref(false)
 const projectionChannel = projectionSupported ? new BroadcastChannel('dia-do-servidor-telao') : null
 let projectionChannelActive = true
 let projectionWindow = null
+let projectionHeartbeatInterval
+
+function sendProjectionHeartbeat() {
+  if (!projectionChannel || !projectionChannelActive) return
+  projectionChannel.postMessage({
+    type: 'heartbeat',
+    sessionId: projectionSessionId,
+  })
+}
+
+function announceProjectionDisconnect() {
+  if (!projectionChannel || !projectionChannelActive) return
+  projectionChannel.postMessage({
+    type: 'operator-disconnected',
+    sessionId: projectionSessionId,
+  })
+}
 
 // Esta lista é independente do credenciamento até a futura integração com o back-end.
 const participants = ref([
@@ -313,13 +330,19 @@ async function confirmDraw() {
 }
 
 onBeforeUnmount(() => {
+  announceProjectionDisconnect()
+  window.clearInterval(projectionHeartbeatInterval)
   projectionChannelActive = false
   projectionChannel?.close()
   window.clearTimeout(confettiTimeout)
   window.clearTimeout(celebrationTimeout)
 })
 
-onMounted(sendProjectionState)
+onMounted(() => {
+  sendProjectionState()
+  sendProjectionHeartbeat()
+  projectionHeartbeatInterval = window.setInterval(sendProjectionHeartbeat, 2000)
+})
 </script>
 
 <template>
@@ -405,14 +428,14 @@ onMounted(sendProjectionState)
             <div class="draw-bingo-ring"></div>
             <div class="draw-bingo-ball">
               <span class="draw-ball-label">MATRÍCULA</span>
-              <strong class="draw-ball-number" aria-live="polite">{{ ballNumber }}</strong>
+              <strong class="draw-ball-number">{{ ballNumber }}</strong>
               <span class="draw-ball-caption">{{
                 latestDraw && !drawing ? 'SORTEADO' : 'Nº DA SORTE'
               }}</span>
             </div>
           </div>
 
-          <h2 class="draw-stage-caption" aria-live="polite" aria-atomic="true">
+          <h2 class="draw-stage-caption">
             {{
               drawing
                 ? 'Boa sorte a todos os participantes!'
@@ -423,6 +446,13 @@ onMounted(sendProjectionState)
                     : 'Não há participantes elegíveis no momento.'
             }}
           </h2>
+          <p class="draw-sr-only" aria-live="polite" aria-atomic="true">
+            {{
+              drawing || !latestDraw
+                ? ''
+                : `Resultado do sorteio ${String(latestDraw.numero).padStart(3, '0')}: ${latestDraw.nome}, matrícula ${latestDraw.matricula}, ${institutionName(latestDraw.origem)}${latestDraw.premioNome ? `, prêmio: ${latestDraw.premioNome}` : ', sem prêmio associado'}.`
+            }}
+          </p>
           <p class="draw-stage-subtitle">
             {{
               drawing

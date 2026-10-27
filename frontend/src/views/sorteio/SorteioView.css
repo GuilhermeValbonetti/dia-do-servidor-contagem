@@ -5,6 +5,15 @@
   overflow: hidden;
 }
 
+.draw-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .draw-view {
   width: 100%;
   max-width: 1390px;

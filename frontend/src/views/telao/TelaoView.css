@@ -13,8 +13,17 @@
   color: #fff;
 }
 
-.projection-screen::before {
+.projection-sr-only {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.projection-screen::before {
+  position: fixed;
   z-index: -1;
   inset: -35%;
   background: repeating-conic-gradient(
@@ -98,6 +107,7 @@
 }
 
 .projection-top-actions {
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 12px;
 }
@@ -110,6 +120,14 @@
   color: #bad8f0;
   font-size: clamp(10px, 0.9vw, 14px);
   white-space: nowrap;
+}
+
+.projection-connection-warning {
+  flex-basis: 100%;
+  color: #ffe8a2;
+  font-size: clamp(10px, 0.9vw, 14px);
+  font-weight: 750;
+  text-align: right;
 }
 
 .projection-fullscreen-button,
