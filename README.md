@@ -53,6 +53,21 @@ npm start
 
 Por padrão, a API fica disponível em `http://127.0.0.1:3000`, e o banco é criado em `backend/data/dia-do-servidor.sqlite`. A rota `GET /api/health` verifica a API e a conexão com o SQLite.
 
+### API de credenciamento
+
+Todas as rotas da API são locais (`127.0.0.1`):
+
+- `GET /api/servidores?page=1&limit=50`: listagem paginada. Aceita `matricula` para pesquisa exata; resultados com a mesma matrícula em instituições diferentes permanecem separados por origem. O limite máximo é 100.
+- `POST /api/credenciamentos`: confirma o servidor selecionado. Envie `{"servidorId": 123, "matricula": "00123"}`; a API exige que a matrícula pesquisada corresponda ao ID selecionado.
+- `DELETE /api/credenciamentos/:servidorId`: desfaz a presença somente se o servidor não tiver sido contemplado.
+- `GET /api/credenciamentos/indicadores`: retorna total de servidores, presenças confirmadas, pendentes e contemplados.
+
+Exemplo de pesquisa:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:3000/api/servidores?matricula=00123"
+```
+
 ### Prévia da importação de servidores
 
 Configure `PREFEITURA_XLSX` e `CAMARA_PDF` no arquivo `backend/.env` com os caminhos locais dos documentos. A prévia não grava servidores:
