@@ -53,6 +53,25 @@ npm start
 
 Por padrão, a API fica disponível em `http://127.0.0.1:3000`, e o banco é criado em `backend/data/dia-do-servidor.sqlite`. A rota `GET /api/health` verifica a API e a conexão com o SQLite.
 
+### Prévia da importação de servidores
+
+Configure `PREFEITURA_XLSX` e `CAMARA_PDF` no arquivo `backend/.env` com os caminhos locais dos documentos. A prévia não grava servidores:
+
+```powershell
+cd backend
+npm run import:preview
+```
+
+Os cabeçalhos do Excel devem identificar as colunas de nome e matrícula. Ajuste `EXPECTED_PREFEITURA_RECORDS` e `EXPECTED_CAMARA_RECORDS` para os totais conferidos nos arquivos. A prévia informa referências de linha/página e não imprime nomes nem matrículas.
+
+O comando `npm run import:apply` grava os registros somente quando não há dados inválidos, matrículas duplicadas dentro da mesma instituição ou divergência dos totais esperados. Registros existentes são ignorados sem atualização. A gravação é transacional e nunca é executada automaticamente.
+
+Também é possível fornecer caminhos diretamente ao comando, sem colocá-los no `.env`:
+
+```powershell
+npm run import:preview -- --prefeitura "C:\caminho\Servidores.xlsx" --camara "C:\caminho\Relatorio.pdf"
+```
+
 ## 🔒 Segurança
 
 O sistema deverá impedir a participação de servidores não credenciados, evitar vencedores duplicados e proteger os dados pessoais utilizados no credenciamento.
