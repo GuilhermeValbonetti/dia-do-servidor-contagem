@@ -53,6 +53,18 @@ npm start
 
 Por padrão, a API fica disponível em `http://127.0.0.1:3000`, e o banco é criado em `backend/data/dia-do-servidor.sqlite`. A rota `GET /api/health` verifica a API e a conexão com o SQLite.
 
+### Ambiente SQLite de testes
+
+O banco `backend/data/dia-do-servidor-teste.sqlite` é independente do banco oficial. Para iniciar a API de testes, use `npm run dev:teste`; o comando força o caminho do banco de testes mesmo que o terminal tenha outro `DB_PATH` definido e falha se o arquivo não existir.
+
+Para restaurar os dados de teste a partir da cópia-base limpa e protegida contra gravação:
+
+```powershell
+npm run reset:teste
+```
+
+Encerre a API de testes antes do reset. Um bloqueio local impede a restauração enquanto o processo da API estiver ativo. O terminal informa `Banco TESTES` ou `Banco OFICIAL` e o caminho usado. `npm start` continua respeitando `DB_PATH`.
+
 ### API de credenciamento
 
 Todas as rotas da API são locais (`127.0.0.1`):

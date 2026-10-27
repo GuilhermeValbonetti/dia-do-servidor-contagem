@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "dev:teste": "node --watch src/server-testing-mode.js",
+    "reset:teste": "node src/reset-test-database.js",
     "import:preview": "node src/import-servers.js --preview",
     "import:apply": "node src/import-servers.js --import",
     "test": "node --test"
@@ -16,5 +18,8 @@
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "pdfjs-dist": "^6.4.299"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

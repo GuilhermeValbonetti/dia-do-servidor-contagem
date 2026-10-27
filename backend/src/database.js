@@ -4,12 +4,14 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const backendDirectory = fileURLToPath(new URL('../', import.meta.url))
+export const backendDirectory = fileURLToPath(new URL('../', import.meta.url))
 
 dotenv.config({ path: path.join(backendDirectory, '.env') })
 
+export const officialDatabasePath = path.join(backendDirectory, 'data', 'dia-do-servidor.sqlite')
+export const testDatabasePath = path.join(backendDirectory, 'data', 'dia-do-servidor-teste.sqlite')
 const configuredDatabasePath = process.env.DB_PATH || './data/dia-do-servidor.sqlite'
-const databasePath = path.resolve(backendDirectory, configuredDatabasePath)
+export const databasePath = path.resolve(backendDirectory, configuredDatabasePath)
 
 mkdirSync(path.dirname(databasePath), { recursive: true })
 
