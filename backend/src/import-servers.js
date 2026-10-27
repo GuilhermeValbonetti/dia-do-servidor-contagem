@@ -1,4 +1,5 @@
 import dotenv from 'dotenv'
+import Database from 'better-sqlite3'
 import ExcelJS from 'exceljs'
 import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -347,21 +348,29 @@ async function main() {
     { ...camara, origem: 'camara' },
   ]
 
-  const { default: db } = await import('./database.js')
-  const report = previewImport(db, sources, expected)
-  printReport(report)
+  const configuredDatabasePath = process.env.DB_PATH || './data/dia-do-servidor.sqlite'
+  const databasePath = path.resolve(backendDirectory, configuredDatabasePath)
+  const db = new Database(databasePath, { fileMustExist: true })
+  db.pragma('foreign_keys = ON')
 
-  if (options.mode === 'preview') {
-    console.log('Modo prévia: nenhum registro foi gravado.')
-    return
+  try {
+    const report = previewImport(db, sources, expected)
+    printReport(report)
+
+    if (options.mode === 'preview') {
+      console.log('Modo prévia: nenhum registro foi gravado.')
+      return
+    }
+
+    if (report.blocked) {
+      throw new Error('Importação bloqueada: corrija os inválidos, duplicados e divergências antes de tentar novamente.')
+    }
+
+    const result = applyImport(db, report.records)
+    console.log(`Importação concluída: ${result.inserted} inseridos; ${result.existing} já existentes.`)
+  } finally {
+    db.close()
   }
-
-  if (report.blocked) {
-    throw new Error('Importação bloqueada: corrija os inválidos, duplicados e divergências antes de tentar novamente.')
-  }
-
-  const result = applyImport(db, report.records)
-  console.log(`Importação concluída: ${result.inserted} inseridos; ${result.existing} já existentes.`)
 }
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
