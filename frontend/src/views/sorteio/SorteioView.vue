@@ -567,7 +567,7 @@ async function confirmDraw() {
               {{ draw.premioNome ? `Prêmio: ${draw.premioNome}` : 'Sorteio sem prêmio associado' }}
             </span>
           </article>
-        </div>
+        </div>  
         <p class="draw-collective-note">
           Cada nome representa um momento especial. Todos merecem reconhecimento!
         </p>
