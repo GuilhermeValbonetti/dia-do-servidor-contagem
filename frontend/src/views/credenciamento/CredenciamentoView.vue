@@ -1,140 +1,35 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import './CredenciamentoView.css'
 
-// Matrículas podem se repetir entre instituições; o ID identifica cada participante.
-const participants = ref([
-  {
-    id: 1,
-    nome: 'Ana Martins',
-    matricula: '001234',
-    origem: 'prefeitura',
-    cpf: '90000000001',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 2,
-    nome: 'Bruno Almeida',
-    matricula: '001234',
-    origem: 'camara',
-    cpf: '90000000002',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 3,
-    nome: 'Camila Rocha',
-    matricula: '001003',
-    origem: 'prefeitura',
-    cpf: '90000000003',
-    presente: true,
-    contemplado: false,
-    confirmadaEm: Date.now() - 240000,
-  },
-  {
-    id: 4,
-    nome: 'Diego Santos',
-    matricula: '001004',
-    origem: 'camara',
-    cpf: '90000000004',
-    presente: true,
-    contemplado: false,
-    confirmadaEm: Date.now() - 180000,
-  },
-  {
-    id: 5,
-    nome: 'Elisa Ferreira',
-    matricula: '001005',
-    origem: 'prefeitura',
-    cpf: '90000000005',
-    presente: true,
-    contemplado: true,
-    confirmadaEm: Date.now() - 120000,
-  },
-  {
-    id: 6,
-    nome: 'Felipe Costa',
-    matricula: '001006',
-    origem: 'camara',
-    cpf: '90000000006',
-    presente: true,
-    contemplado: false,
-    confirmadaEm: Date.now() - 60000,
-  },
-  {
-    id: 7,
-    nome: 'Gabriela Nunes',
-    matricula: '001007',
-    origem: 'prefeitura',
-    cpf: '90000000007',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 8,
-    nome: 'Heitor Lima',
-    matricula: '001008',
-    origem: 'camara',
-    cpf: '90000000008',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 9,
-    nome: 'Isabela Duarte',
-    matricula: '001009',
-    origem: 'prefeitura',
-    cpf: '90000000009',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 10,
-    nome: 'João Ribeiro',
-    matricula: '001010',
-    origem: 'camara',
-    cpf: '90000000010',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 11,
-    nome: 'Lara Mendes',
-    matricula: '001011',
-    origem: 'prefeitura',
-    cpf: '90000000011',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-  {
-    id: 12,
-    nome: 'Miguel Barros',
-    matricula: '001012',
-    origem: 'camara',
-    cpf: '90000000012',
-    presente: false,
-    contemplado: false,
-    confirmadaEm: null,
-  },
-])
+const participants = ref([])
+const indicatorData = ref({
+  totalServidores: 0,
+  servidoresPendentes: 0,
+  presencasConfirmadas: 0,
+  servidoresContemplados: 0,
+})
 
 const searchMode = ref('matricula')
 const searchValue = ref('')
 const searchResults = ref([])
 const searchMessage = ref('')
 const searchMessageType = ref('info')
+const isSearching = ref(false)
+const selectedServerId = ref(null)
+const isSaving = ref(false)
+const loading = ref(true)
+const loadError = ref('')
+const indicatorsError = ref('')
+const indicatorsLoaded = ref(false)
 const directorySearch = ref('')
 const activeFilter = ref('all')
+const currentPage = ref(1)
+const pageSize = 50
+const totalPages = ref(0)
+const totalRecords = ref(0)
 
 const filters = [
   { value: 'all', label: 'Todos' },
@@ -144,20 +39,24 @@ const filters = [
 ]
 
 const indicators = computed(() => [
-  { label: 'Servidores na base', value: participants.value.length, tone: 'total' },
+  {
+    label: 'Servidores na base',
+    value: indicatorsLoaded.value ? indicatorData.value.totalServidores : '—',
+    tone: 'total',
+  },
   {
     label: 'Pendentes de presença',
-    value: participants.value.filter((person) => !person.presente).length,
+    value: indicatorsLoaded.value ? indicatorData.value.servidoresPendentes : '—',
     tone: 'pending',
   },
   {
     label: 'Presenças confirmadas',
-    value: participants.value.filter((person) => person.presente).length,
+    value: indicatorsLoaded.value ? indicatorData.value.presencasConfirmadas : '—',
     tone: 'present',
   },
   {
     label: 'Já contemplados',
-    value: participants.value.filter((person) => person.contemplado).length,
+    value: indicatorsLoaded.value ? indicatorData.value.servidoresContemplados : '—',
     tone: 'winners',
   },
 ])
@@ -165,7 +64,10 @@ const indicators = computed(() => [
 const latestConfirmations = computed(() =>
   participants.value
     .filter((person) => person.presente)
-    .sort((first, second) => second.confirmadaEm - first.confirmadaEm)
+    .sort(
+      (first, second) =>
+        new Date(second.confirmadoEm).getTime() - new Date(first.confirmadoEm).getTime(),
+    )
     .slice(0, 8),
 )
 
@@ -192,10 +94,86 @@ const directoryResultsLabel = computed(() => {
   const total = filteredParticipants.value.length
   const noun = total === 1 ? 'servidor' : 'servidores'
 
-  return directorySearch.value || activeFilter.value !== 'all'
-    ? `${total} ${noun} ${total === 1 ? 'encontrado' : 'encontrados'}`
-    : `${total} ${noun} na base`
+  return `${total} ${noun} nesta página · ${totalRecords.value} no total`
 })
+
+async function requestApi(url, options) {
+  let response
+  try {
+    response = await fetch(url, options)
+  } catch {
+    throw new Error('Não foi possível conectar à API. Verifique se o back-end está em execução.')
+  }
+
+  let data
+  try {
+    data = await response.json()
+  } catch {
+    if (!response.ok && response.status >= 500) {
+      throw new Error('Não foi possível conectar à API. Verifique se o back-end está em execução.')
+    }
+    throw new Error('A API retornou uma resposta inválida.')
+  }
+
+  if (!response.ok) {
+    const messages = {
+      400: `Dados inválidos: ${data.erro || 'verifique os campos enviados.'}`,
+      404: data.erro || 'O servidor ou credenciamento não foi encontrado.',
+      409: data.erro || 'A operação não pode ser realizada devido ao estado atual do registro.',
+      500: 'Ocorreu um erro interno na API. Tente novamente.',
+    }
+    throw new Error(
+      messages[response.status] || data.erro || 'Não foi possível concluir a operação.',
+    )
+  }
+
+  return data
+}
+
+function mapServer(server) {
+  return {
+    ...server,
+    presente: Boolean(server.credenciado),
+    contemplado: Boolean(server.contemplado),
+  }
+}
+
+async function loadDirectory(page = currentPage.value) {
+  loading.value = true
+  loadError.value = ''
+
+  try {
+    const data = await requestApi(`/api/servidores?page=${page}&limit=${pageSize}`)
+    participants.value = data.dados.map(mapServer)
+    currentPage.value = data.paginacao.pagina
+    totalPages.value = data.paginacao.paginas
+    totalRecords.value = data.paginacao.total
+  } catch (error) {
+    loadError.value = error.message
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadIndicators() {
+  indicatorsError.value = ''
+  try {
+    indicatorData.value = await requestApi('/api/credenciamentos/indicadores')
+    indicatorsLoaded.value = true
+  } catch (error) {
+    indicatorsError.value = error.message
+  }
+}
+
+async function refreshData(page = currentPage.value) {
+  await Promise.all([loadDirectory(page), loadIndicators()])
+}
+
+async function changePage(page) {
+  if (loading.value || page < 1 || page > totalPages.value) return
+  directorySearch.value = ''
+  await loadDirectory(page)
+}
 
 function normalize(value) {
   return value
@@ -221,41 +199,49 @@ function statusLabel(person) {
 function clearSearch() {
   searchResults.value = []
   searchMessage.value = ''
+  selectedServerId.value = null
 }
 
 function setSearchMode(mode) {
+  if (mode !== 'matricula') return
   searchMode.value = mode
   searchValue.value = ''
   clearSearch()
 }
 
-function searchParticipants() {
-  const searchTerm =
-    searchMode.value === 'cpf' ? searchValue.value.replace(/\D/g, '') : searchValue.value.trim()
+async function searchParticipants() {
+  if (isSearching.value) return
+  const searchTerm = searchValue.value.trim()
   searchResults.value = []
+  selectedServerId.value = null
 
-  if (!searchTerm || (searchMode.value === 'cpf' && searchTerm.length !== 11)) {
-    searchMessage.value =
-      searchMode.value === 'cpf'
-        ? 'Informe um CPF com 11 dígitos para consultar.'
-        : 'Informe a matrícula para consultar.'
+  if (!searchTerm || !/^\d+$/.test(searchTerm)) {
+    searchMessage.value = 'Informe uma matrícula contendo somente números.'
     searchMessageType.value = 'warning'
     return
   }
 
-  searchResults.value = participants.value.filter((person) =>
-    searchMode.value === 'cpf' ? person.cpf === searchTerm : person.matricula === searchTerm,
-  )
-  searchMessage.value = searchResults.value.length
-    ? `${searchResults.value.length} servidor${searchResults.value.length === 1 ? '' : 'es'} encontrado${searchResults.value.length === 1 ? '' : 's'}. Confira a instituição antes de confirmar.`
-    : 'Nenhum servidor encontrado. Confira o documento e tente novamente.'
-  searchMessageType.value = searchResults.value.length ? 'info' : 'warning'
+  isSearching.value = true
+  try {
+    const data = await requestApi(
+      `/api/servidores?matricula=${encodeURIComponent(searchTerm)}&limit=100`,
+    )
+    searchResults.value = data.dados.map(mapServer)
+    searchMessage.value = searchResults.value.length
+      ? `${searchResults.value.length} servidor${searchResults.value.length === 1 ? '' : 'es'} encontrado${searchResults.value.length === 1 ? '' : 's'}. Confira a instituição e selecione o registro correto.`
+      : 'Nenhum servidor encontrado para esta matrícula.'
+    searchMessageType.value = searchResults.value.length ? 'info' : 'warning'
+  } catch (error) {
+    searchMessage.value = error.message
+    searchMessageType.value = 'warning'
+  } finally {
+    isSearching.value = false
+  }
 }
 
-function searchExample(value) {
-  searchMode.value = 'matricula'
-  searchValue.value = value
-  searchParticipants()
+function selectServer(person) {
+  if (person.presente || person.contemplado || isSaving.value) return
+  selectedServerId.value = person.id
 }
 
 function selectFilter(filter) {
@@ -263,7 +249,14 @@ function selectFilter(filter) {
 }
 
 async function confirmPresence(person) {
-  if (!searchResults.value.some((result) => result.id === person.id)) return
+  if (
+    isSaving.value ||
+    selectedServerId.value !== person.id ||
+    !searchResults.value.some((result) => result.id === person.id)
+  ) {
+    return
+  }
+
   if (person.contemplado || person.presente) {
     await Swal.fire({
       icon: 'warning',
@@ -277,52 +270,109 @@ async function confirmPresence(person) {
     return
   }
 
-  person.presente = true
-  person.confirmadaEm = Date.now()
-  await Swal.fire({
-    icon: 'success',
-    title: 'Presença confirmada',
-    text: `${person.nome} · ${institutionName(person.origem)}`,
-    confirmButtonText: 'Concluir',
-    confirmButtonColor: '#0868af',
-  })
-}
+  isSaving.value = true
+  try {
+    const confirmation = await Swal.fire({
+      icon: 'question',
+      title: 'Confirmar presença?',
+      text: `${person.nome} · ${person.matricula} · ${institutionName(person.origem)}`,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar presença',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0868af',
+      cancelButtonColor: '#e8eef4',
+      reverseButtons: true,
+    })
+    if (!confirmation.isConfirmed) return
 
-async function undoPresence(person) {
-  if (!person.presente || person.contemplado) {
+    await requestApi('/api/credenciamentos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ servidorId: person.id, matricula: person.matricula }),
+    })
+    selectedServerId.value = null
+    await Promise.all([refreshData(), searchParticipants()])
     await Swal.fire({
-      icon: 'warning',
-      title: 'Ação não permitida',
-      text: 'A presença de um vencedor não pode ser desfeita.',
+      icon: 'success',
+      title: 'Presença confirmada',
+      text: `${person.nome} · ${institutionName(person.origem)}`,
+      confirmButtonText: 'Concluir',
+      confirmButtonColor: '#0868af',
+    })
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível confirmar',
+      text: error.message,
       confirmButtonText: 'Entendi',
       confirmButtonColor: '#0868af',
     })
-    return
+    if (error.message.includes('já foi confirmada')) {
+      await Promise.all([searchParticipants(), refreshData()])
+    }
+  } finally {
+    isSaving.value = false
   }
-
-  const result = await Swal.fire({
-    icon: 'warning',
-    title: 'Desfazer presença?',
-    text: `${person.nome} · ${institutionName(person.origem)}`,
-    showCancelButton: true,
-    confirmButtonText: 'Desfazer presença',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#a83e4b',
-    cancelButtonColor: '#e8eef4',
-    reverseButtons: true,
-  })
-  if (!result.isConfirmed) return
-
-  person.presente = false
-  person.confirmadaEm = null
-  await Swal.fire({
-    icon: 'success',
-    title: 'Presença desfeita',
-    text: `A presença de ${person.nome} foi desfeita.`,
-    confirmButtonText: 'Concluir',
-    confirmButtonColor: '#0868af',
-  })
 }
+
+async function undoPresence(person) {
+  if (isSaving.value) return
+  isSaving.value = true
+  try {
+    if (!person.presente || person.contemplado) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Ação não permitida',
+        text: 'A presença de um vencedor não pode ser desfeita.',
+        confirmButtonText: 'Entendi',
+        confirmButtonColor: '#0868af',
+      })
+      return
+    }
+
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'Desfazer presença?',
+      text: `${person.nome} · ${institutionName(person.origem)}`,
+      showCancelButton: true,
+      confirmButtonText: 'Desfazer presença',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#a83e4b',
+      cancelButtonColor: '#e8eef4',
+      reverseButtons: true,
+    })
+    if (!result.isConfirmed) return
+
+    await requestApi(`/api/credenciamentos/${person.id}`, { method: 'DELETE' })
+    await Promise.all([
+      refreshData(),
+      searchValue.value.trim() ? searchParticipants() : Promise.resolve(),
+    ])
+    await Swal.fire({
+      icon: 'success',
+      title: 'Presença desfeita',
+      text: `A presença de ${person.nome} foi desfeita.`,
+      confirmButtonText: 'Concluir',
+      confirmButtonColor: '#0868af',
+    })
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível desfazer',
+      text: error.message.includes('contemplado')
+        ? 'Este servidor já foi contemplado; a presença deve ser mantida.'
+        : error.message,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    await refreshData()
+    if (searchValue.value.trim()) await searchParticipants()
+  } finally {
+    isSaving.value = false
+  }
+}
+
+onMounted(refreshData)
 </script>
 
 <template>
@@ -367,7 +417,7 @@ async function undoPresence(person) {
           Confirme a chegada dos servidores para habilitá-los aos sorteios.
         </p>
       </div>
-      <div class="checkin-demo-tag">BASE FICTÍCIA · DEMONSTRAÇÃO</div>
+      <div class="checkin-demo-tag">BASE OFICIAL · DADOS REAIS</div>
     </header>
 
     <section class="checkin-layout" aria-label="Credenciamento de servidores">
@@ -392,9 +442,9 @@ async function undoPresence(person) {
             </button>
             <button
               type="button"
-              :class="{ active: searchMode === 'cpf' }"
-              :aria-pressed="searchMode === 'cpf'"
-              @click="setSearchMode('cpf')"
+              disabled
+              aria-disabled="true"
+              title="A base atual não possui CPF para consulta."
             >
               CPF
             </button>
@@ -411,42 +461,26 @@ async function undoPresence(person) {
                 type="text"
                 inputmode="numeric"
                 autocomplete="off"
-                :maxlength="searchMode === 'cpf' ? 14 : 18"
-                :placeholder="searchMode === 'matricula' ? 'Ex.: 001234' : 'Ex.: 900.000.000-01'"
+                maxlength="18"
+                placeholder="Ex.: 001234"
+                :disabled="isSearching || isSaving"
                 aria-describedby="checkin-search-help"
                 @input="clearSearch"
               />
-              <button class="checkin-button checkin-button-primary" type="submit">
+              <button
+                class="checkin-button checkin-button-primary"
+                type="submit"
+                :disabled="isSearching || isSaving"
+              >
                 <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-                Consultar
+                {{ isSearching ? 'Consultando…' : 'Consultar' }}
               </button>
             </div>
             <p id="checkin-search-help" class="checkin-field-note">
-              {{
-                searchMode === 'matricula'
-                  ? 'A matrícula é consultada como texto, inclusive zeros à esquerda.'
-                  : 'Digite os 11 dígitos do CPF fictício.'
-              }}
+              A matrícula é consultada como texto, inclusive zeros à esquerda. A busca por CPF não
+              está disponível.
             </p>
           </form>
-
-          <div class="checkin-quick-search">
-            <span>Teste rápido:</span>
-            <button
-              class="checkin-button checkin-button-secondary checkin-button-small"
-              type="button"
-              @click="searchExample('001234')"
-            >
-              Matrícula duplicada
-            </button>
-            <button
-              class="checkin-button checkin-button-secondary checkin-button-small"
-              type="button"
-              @click="searchExample('001007')"
-            >
-              Servidor pendente
-            </button>
-          </div>
 
           <p
             v-if="searchMessage"
@@ -459,7 +493,12 @@ async function undoPresence(person) {
 
           <div v-if="searchResults.length" class="checkin-results">
             <h3>Resultados da consulta</h3>
-            <article v-for="person in searchResults" :key="person.id" class="checkin-person-card">
+            <article
+              v-for="person in searchResults"
+              :key="person.id"
+              class="checkin-person-card"
+              :class="{ 'checkin-person-card-selected': selectedServerId === person.id }"
+            >
               <div class="checkin-person-main">
                 <span class="checkin-avatar" aria-hidden="true">
                   {{
@@ -480,9 +519,6 @@ async function undoPresence(person) {
                 <div>
                   <span>Matrícula</span><strong>{{ person.matricula }}</strong>
                 </div>
-                <div>
-                  <span>CPF</span><strong>***.***.***-{{ person.cpf.slice(-2) }}</strong>
-                </div>
                 <span :class="['checkin-status', `checkin-status-${participantStatus(person)}`]">
                   <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
                     <use
@@ -499,14 +535,26 @@ async function undoPresence(person) {
                 </span>
               </div>
               <button
-                v-if="!person.presente && !person.contemplado"
+                v-if="!person.presente && !person.contemplado && selectedServerId !== person.id"
                 class="checkin-button checkin-button-primary checkin-confirm-button"
                 type="button"
-                @click="confirmPresence(person)"
+                :disabled="isSaving"
+                @click="selectServer(person)"
               >
-                <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-check" /></svg>
-                Confirmar presença
+                Selecionar servidor
               </button>
+              <div v-else-if="selectedServerId === person.id" class="checkin-selected-actions">
+                <span role="status">Servidor selecionado</span>
+                <button
+                  class="checkin-button checkin-button-primary checkin-confirm-button"
+                  type="button"
+                  :disabled="isSaving"
+                  @click="confirmPresence(person)"
+                >
+                  <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-check" /></svg>
+                  {{ isSaving ? 'Aguarde…' : 'Confirmar presença' }}
+                </button>
+              </div>
             </article>
           </div>
         </section>
@@ -529,11 +577,13 @@ async function undoPresence(person) {
                 <svg class="checkin-icon" aria-hidden="true">
                   <use href="#checkin-check-circle" />
                 </svg>
-                Últimas confirmações
+                Presenças nesta página
               </h2>
-              <p class="checkin-panel-subtitle">Acompanhe a entrada dos participantes.</p>
+              <p class="checkin-panel-subtitle">
+                Confirmações entre os servidores carregados nesta página.
+              </p>
             </div>
-            <span class="checkin-count">{{ latestConfirmations.length }} no local</span>
+            <span class="checkin-count">{{ latestConfirmations.length }} nesta página</span>
           </header>
           <div v-if="latestConfirmations.length" class="checkin-confirmation-list">
             <article
@@ -570,6 +620,7 @@ async function undoPresence(person) {
                 class="checkin-button checkin-button-danger checkin-button-small"
                 type="button"
                 :aria-label="`Desfazer presença de ${person.nome}`"
+                :disabled="isSaving"
                 @click="undoPresence(person)"
               >
                 Desfazer
@@ -597,11 +648,11 @@ async function undoPresence(person) {
             Servidores da base
           </h2>
           <p>
-            Consulte os servidores e acompanhe suas situações. Para confirmar presença, use a busca
-            individual acima; pela lista, é possível apenas desfazer uma presença.
+            Consulte os servidores desta página e acompanhe suas situações. Para confirmar presença,
+            pesquise a matrícula acima; pela lista, é possível apenas desfazer uma presença.
           </p>
         </div>
-        <span class="checkin-source">Base fictícia · demonstração</span>
+        <span class="checkin-source">Base oficial</span>
       </header>
 
       <div class="checkin-summary" aria-label="Resumo dos servidores">
@@ -614,16 +665,21 @@ async function undoPresence(person) {
           <span>{{ indicator.label }}</span>
         </article>
       </div>
+      <p v-if="indicatorsError" class="checkin-feedback checkin-feedback-warning" role="alert">
+        Não foi possível atualizar os indicadores: {{ indicatorsError }}
+      </p>
 
       <div class="checkin-directory-tools">
         <label class="checkin-directory-search">
           <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-          <span class="checkin-sr-only">Buscar na lista por nome, matrícula ou instituição</span>
+          <span class="checkin-sr-only">
+            Buscar nesta página por nome, matrícula ou instituição</span
+          >
           <input
             v-model="directorySearch"
             type="search"
             autocomplete="off"
-            placeholder="Buscar por nome, matrícula ou instituição..."
+            placeholder="Buscar nesta página por nome, matrícula ou instituição..."
           />
         </label>
         <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
@@ -647,7 +703,21 @@ async function undoPresence(person) {
         <span>Ação</span>
       </div>
 
-      <div v-if="filteredParticipants.length" class="checkin-participant-list" role="list">
+      <div v-if="loading" class="checkin-directory-empty" role="status" aria-live="polite">
+        <strong>Carregando servidores…</strong>
+      </div>
+      <div v-else-if="loadError" class="checkin-directory-empty" role="alert">
+        <strong>Não foi possível carregar os servidores</strong>
+        <span>{{ loadError }}</span>
+        <button
+          class="checkin-button checkin-button-secondary checkin-button-small"
+          type="button"
+          @click="refreshData()"
+        >
+          Tentar novamente
+        </button>
+      </div>
+      <div v-else-if="filteredParticipants.length" class="checkin-participant-list" role="list">
         <article
           v-for="person in filteredParticipants"
           :key="person.id"
@@ -675,6 +745,7 @@ async function undoPresence(person) {
               class="checkin-button checkin-button-danger checkin-button-small"
               type="button"
               :aria-label="`Desfazer presença de ${person.nome}`"
+              :disabled="isSaving"
               @click="undoPresence(person)"
             >
               Desfazer presença
@@ -691,11 +762,36 @@ async function undoPresence(person) {
       </div>
       <div v-else class="checkin-directory-empty" role="status">
         <strong>Nenhum servidor encontrado</strong>
-        <span>Tente outro termo ou altere o filtro.</span>
+        <span>
+          {{
+            directorySearch || activeFilter !== 'all'
+              ? 'Tente outro termo, ajuste o filtro ou consulte outra página.'
+              : 'Não há servidores nesta página.'
+          }}
+        </span>
       </div>
 
       <footer class="checkin-directory-footer">
         <span role="status" aria-live="polite">{{ directoryResultsLabel }}</span>
+        <nav v-if="totalPages > 1" class="checkin-pagination" aria-label="Paginação dos servidores">
+          <button
+            class="checkin-button checkin-button-secondary checkin-button-small"
+            type="button"
+            :disabled="loading || currentPage <= 1"
+            @click="changePage(currentPage - 1)"
+          >
+            Anterior
+          </button>
+          <span>Página {{ currentPage }} de {{ totalPages }}</span>
+          <button
+            class="checkin-button checkin-button-secondary checkin-button-small"
+            type="button"
+            :disabled="loading || currentPage >= totalPages"
+            @click="changePage(currentPage + 1)"
+          >
+            Próxima
+          </button>
+        </nav>
       </footer>
     </section>
   </div>

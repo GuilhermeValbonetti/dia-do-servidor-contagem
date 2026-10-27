@@ -322,6 +322,23 @@
   background: linear-gradient(150deg, #fff, #f9fbfe);
 }
 
+.checkin-person-card-selected {
+  border-color: #8fc7e8;
+  box-shadow: 0 0 0 2px #2485ca1c;
+}
+
+.checkin-selected-actions {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.checkin-selected-actions > span {
+  color: #176b49;
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .checkin-person-main {
   display: flex;
   min-width: 0;
@@ -830,6 +847,25 @@
   gap: 12px;
   padding: 14px 23px 20px;
   border-top: 1px solid #edf1f5;
+}
+
+.checkin-pagination {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.checkin-pagination > span {
+  color: #61758b;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.checkin-button:disabled,
+.checkin-segment button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .checkin-directory-footer span {
