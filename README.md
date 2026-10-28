@@ -1,108 +1,78 @@
-# 🎉 Dia do Servidor — Prefeitura de Contagem
+# Dia do Servidor — Prefeitura Municipal de Contagem/MG
 
-Sistema web de credenciamento e sorteios desenvolvido para auxiliar na organização de eventos da **Prefeitura Municipal de Contagem (MG)**.
+Sistema local de credenciamento, prêmios, sorteios e apresentação de vencedores em projetor. Vue 3 + Vite, Node.js + Express e SQLite com better-sqlite3.
 
-O projeto tem como objetivo oferecer uma solução simples, intuitiva e responsiva para registrar a presença dos servidores, realizar sorteios e apresentar os contemplados em tempo real.
+Desenvolvimento concluído, sujeito à homologação presencial no notebook e projetor do evento.
 
-## 🚀 Funcionalidades previstas
+## Instalação e operação
 
-- **Credenciamento:** consulta de servidores por matrícula ou CPF e confirmação de presença.
-- **Controle de participação:** somente servidores presentes e ainda não contemplados poderão participar dos sorteios.
-- **Sorteios:** seleção aleatória de participantes elegíveis, sem repetição de vencedores.
-- **Prêmios:** cadastro opcional e associação ao vencedor no momento do sorteio.
-- **Histórico:** consulta dos servidores contemplados e seus respectivos prêmios.
-- **Modo Telão:** apresentação dos sorteios com animações e celebrações.
-- **Responsividade:** interface adaptável a computadores, celulares e projetores.
+Siga [INSTALACAO-EVENTO.md](INSTALACAO-EVENTO.md) para preparar um Windows novo, transferir os bancos, simular, fazer backups e recuperar operações.
 
-## 🛠️ Tecnologias previstas
+Versão utilizada na validação: **Node.js 26.7.0**, com npm. Instale e execute com a mesma versão; o módulo SQLite é nativo. Não copie node_modules de outro computador.
 
-**Front-end**
-- Vue.js 3
-- Vite
-- HTML5, CSS3 e JavaScript
-
-**Back-end**
-- Node.js
-- Express.js
-- JavaScript com ES Modules
-- dotenv
-
-**Banco de dados**
-- SQLite com better-sqlite3
-
-## 🎨 Interface
-
-O projeto seguirá princípios de UX/UI, acessibilidade e desenvolvimento *mobile first*, utilizando uma identidade visual inspirada nas cores institucionais de Contagem.
-
-A apresentação dos sorteios terá como referência a resolução HD (1280 × 720), com adaptação a diferentes tamanhos de tela.
-
-## 📌 Status do projeto
-
-🚧 **Em desenvolvimento**
-
-O front-end está implementado. A estrutura inicial da API e do banco local está em desenvolvimento; as telas ainda não estão integradas ao back-end.
-
-### Executar o back-end
+Após clonar, instale as dependências:
 
 ```powershell
 cd backend
-npm install
-Copy-Item .env.example .env
-npm start
+npm.cmd ci
+cd ../frontend
+npm.cmd ci
 ```
 
-Por padrão, a API fica disponível em `http://127.0.0.1:3000`, e o banco é criado em `backend/data/dia-do-servidor.sqlite`. A rota `GET /api/health` verifica a API e a conexão com o SQLite.
+Os bancos não vêm no Git. Transfira os três SQLite validados para `backend/data/`, conforme o manual. A inicialização normal exige arquivo existente, tabelas essenciais e servidores cadastrados; não cria ou repara bancos.
 
-### Ambiente SQLite de testes
-
-O banco `backend/data/dia-do-servidor-teste.sqlite` é independente do banco oficial. Para iniciar a API de testes, use `npm run dev:teste`; o comando força o caminho do banco de testes mesmo que o terminal tenha outro `DB_PATH` definido e falha se o arquivo não existir.
-
-Para restaurar os dados de teste a partir da cópia-base limpa e protegida contra gravação:
+Em um terminal na pasta `backend`:
 
 ```powershell
-npm run reset:teste
+$env:DB_PATH = './data/dia-do-servidor.sqlite'
+$env:PORT = '3000'
+npm.cmd start
 ```
 
-Encerre a API de testes antes do reset. Um bloqueio local impede a restauração enquanto o processo da API estiver ativo. O terminal informa `Banco TESTES` ou `Banco OFICIAL` e o caminho usado. `npm start` continua respeitando `DB_PATH`.
-
-### API de credenciamento
-
-Todas as rotas da API são locais (`127.0.0.1`):
-
-- `GET /api/servidores?page=1&limit=50`: listagem paginada. Aceita `matricula` para pesquisa exata; resultados com a mesma matrícula em instituições diferentes permanecem separados por origem. O limite máximo é 100.
-- `POST /api/credenciamentos`: confirma o servidor selecionado. Envie `{"servidorId": 123, "matricula": "00123"}`; a API exige que a matrícula pesquisada corresponda ao ID selecionado.
-- `DELETE /api/credenciamentos/:servidorId`: desfaz a presença somente se o servidor não tiver sido contemplado.
-- `GET /api/credenciamentos/indicadores`: retorna total de servidores, presenças confirmadas, pendentes e contemplados.
-
-Exemplo de pesquisa:
+Em outro terminal na pasta `frontend`:
 
 ```powershell
-Invoke-RestMethod "http://127.0.0.1:3000/api/servidores?matricula=00123"
+npm.cmd run dev
 ```
 
-### Prévia da importação de servidores
+Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. Confira **Banco OFICIAL** e o caminho no terminal da API. `GET /api/health` retorna `status`, `database` e `ambiente`, sem caminhos locais. O Credenciamento distingue a base oficial do ambiente de testes.
 
-Configure `PREFEITURA_XLSX` e `CAMARA_PDF` no arquivo `backend/.env` com os caminhos locais dos documentos. A prévia não grava servidores:
+## Funcionalidades implementadas
+
+- Início e Sidebar: indicadores reais e últimos vencedores.
+- Credenciamento: matrícula exata, instituição, local de trabalho, busca por nome, filtros globais e paginação. CPF não está disponível. Presença duplicada é bloqueada; presença de vencedor não pode ser desfeita.
+- Prêmios: cadastro, listagem e exclusão somente de unidades disponíveis.
+- Sorteio: seleção exclusivamente pelo back-end entre presentes ainda não contemplados, prêmio opcional, transação e idempotência persistente. Resultados definitivos.
+- Espaço: inicia o fluxo do botão, com confirmação no modal; não atua em campos, controles, modais ou rodada em andamento.
+- Telão: sessão sincronizada, animação visual, resultado confirmado pela API, confetes e recuperação sem novo sorteio.
+- Vencedores: histórico paginado e celebrações que apenas reapresentam resultados.
+- Guia: instruções de uso no próprio sistema.
+
+## Ambiente de testes
+
+Encerre a API anterior e execute em `backend`:
 
 ```powershell
-cd backend
-npm run import:preview
+npm.cmd run dev:teste
 ```
 
-Os cabeçalhos do Excel devem identificar as colunas de nome e matrícula. Ajuste `EXPECTED_PREFEITURA_RECORDS` e `EXPECTED_CAMARA_RECORDS` para os totais conferidos nos arquivos. A prévia informa referências de linha/página e não imprime nomes nem matrículas.
+Esse script força o banco de testes, verifica isolamento e usa bloqueio contra reset concorrente. Confira **Banco TESTES** no terminal e **AMBIENTE DE TESTES** no Credenciamento antes de simular. Mantenha apenas uma API na porta 3000.
 
-O comando `npm run import:apply` grava os registros somente quando não há dados inválidos, matrículas duplicadas dentro da mesma instituição ou divergência dos totais esperados. Registros existentes são ignorados sem atualização. A gravação é transacional e nunca é executada automaticamente.
+`npm.cmd run reset:teste` restaura exclusivamente testes a partir da base limpa protegida. Apaga operações de testes: só use quando solicitado, após backup e com a API de testes encerrada. Não faz parte da instalação ou operação do evento.
 
-Também é possível fornecer caminhos diretamente ao comando, sem colocá-los no `.env`:
+## Qualidade
 
 ```powershell
-npm run import:preview -- --prefeitura "C:\caminho\Servidores.xlsx" --camara "C:\caminho\Relatorio.pdf"
+# backend
+npm.cmd test
+
+# frontend
+npm.cmd run build
+node node_modules/eslint/bin/eslint.js .
+node node_modules/oxlint/bin/oxlint .
+node node_modules/prettier/bin/prettier.cjs --check src/
 ```
 
-## 🔒 Segurança
+Testes com escrita usam bancos descartáveis. `npm run lint` e `npm run format` fazem correções automáticas; os comandos acima apenas verificam o código.
 
-O sistema deverá impedir a participação de servidores não credenciados, evitar vencedores duplicados e proteger os dados pessoais utilizados no credenciamento.
-
----
-
-Projeto desenvolvido para apoiar a organização de eventos da Prefeitura Municipal de Contagem.
+Consulte [contratos e recuperação](backend/SORTEIOS.md) e o [histórico dos locais de trabalho](backend/PLANO-LOCAL-DE-TRABALHO.md). Importação, migração e reset não fazem parte da operação do evento. Preserve bancos, backups e documentos pessoais fora do Git.

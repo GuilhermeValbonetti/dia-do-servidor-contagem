@@ -34,7 +34,7 @@ async function fixture(t) {
     ],
     {
       cwd: backendDirectory,
-      env: { ...process.env, DB_PATH: databasePath },
+      env: { ...process.env, NODE_ENV: 'test', DB_PATH: databasePath },
     },
   )
   db = new Database(databasePath)

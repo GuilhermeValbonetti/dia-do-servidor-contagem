@@ -286,7 +286,7 @@ test('winners renders persisted SQLite joins after reopening a disposable databa
     ],
     {
       cwd: fileURLToPath(new URL('../', import.meta.url)),
-      env: { ...process.env, DB_PATH: databasePath },
+      env: { ...process.env, NODE_ENV: 'test', DB_PATH: databasePath },
     },
   )
   db = new Database(databasePath)

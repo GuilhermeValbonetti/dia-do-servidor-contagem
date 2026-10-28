@@ -3,6 +3,11 @@ import dotenv from 'dotenv'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  assertExistingDatabase,
+  isPersistentDatabase,
+  validateExistingDatabase,
+} from './database-startup.js'
 
 export const backendDirectory = fileURLToPath(new URL('../', import.meta.url))
 
@@ -13,14 +18,28 @@ export const testDatabasePath = path.join(backendDirectory, 'data', 'dia-do-serv
 const configuredDatabasePath = process.env.DB_PATH || './data/dia-do-servidor.sqlite'
 export const databasePath = path.resolve(backendDirectory, configuredDatabasePath)
 
-mkdirSync(path.dirname(databasePath), { recursive: true })
+// Somente fixtures explicitamente marcadas podem criar schema em arquivos descartáveis.
+const disposable =
+  process.env.NODE_ENV === 'test' && process.env.DB_PATH && !isPersistentDatabase(databasePath)
+if (disposable) mkdirSync(path.dirname(databasePath), { recursive: true })
+else assertExistingDatabase(databasePath)
 
-const db = new Database(databasePath)
+const db = new Database(databasePath, { fileMustExist: !disposable })
+
+if (!disposable) {
+  try {
+    validateExistingDatabase(db)
+  } catch (error) {
+    db.close()
+    throw error
+  }
+}
 
 db.pragma('foreign_keys = ON')
-db.pragma('journal_mode = WAL')
+if (disposable) db.pragma('journal_mode = WAL')
 
-db.exec(`
+if (disposable)
+  db.exec(`
   CREATE TABLE IF NOT EXISTS servidores (
     id INTEGER PRIMARY KEY,
     nome TEXT NOT NULL CHECK (length(trim(nome)) > 0),

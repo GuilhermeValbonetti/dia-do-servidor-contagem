@@ -1,6 +1,7 @@
 import express from 'express'
 import { registerDrawRoutes } from './sorteios.js'
 import { workplaceFields } from './workplace-fields.js'
+import { databaseEnvironment } from './database-startup.js'
 
 export function createApp(db) {
   const app = express()
@@ -19,7 +20,7 @@ export function createApp(db) {
   app.get('/api/health', (_request, response) => {
     try {
       db.prepare('SELECT 1').get()
-      response.json({ status: 'ok', database: 'connected' })
+      response.json({ status: 'ok', database: 'connected', ambiente: databaseEnvironment(db.name) })
     } catch (error) {
       console.error('Falha ao verificar a conexão com o SQLite.', error)
       response.status(503).json({ status: 'error', database: 'disconnected' })

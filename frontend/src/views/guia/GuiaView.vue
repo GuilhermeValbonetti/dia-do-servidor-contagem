@@ -158,10 +158,15 @@ import './GuiaView.css'
         <ol class="guide-draw-steps">
           <li>Confira a quantidade de participantes aptos.</li>
           <li>Escolha um prêmio, se desejar.</li>
-          <li>Clique em <strong>Iniciar sorteio</strong>.</li>
+          <li>Clique em <strong>Iniciar sorteio</strong> ou pressione <strong>Espaço</strong>.</li>
           <li>Confira o resumo e clique em <strong>Confirmar e continuar</strong>.</li>
           <li>Acompanhe a animação e a revelação do resultado.</li>
         </ol>
+        <p>
+          O atalho Espaço abre a confirmação; o operador ainda precisa confirmar no modal. Ele só
+          funciona com uma rodada preparada e participantes aptos, fora de campos de digitação,
+          botões e outros controles interativos.
+        </p>
         <p class="guide-rule">
           Participam apenas servidores presentes que ainda não ganharam. Sem pessoas aptas, não é
           possível iniciar outra rodada. O resultado é registrado automaticamente antes da revelação

@@ -244,6 +244,7 @@ test('credenciamento API supports search, duplicate institutions, pagination, an
     assert.deepEqual(await response.json(), {
       status: 'ok',
       database: 'connected',
+      ambiente: 'configurado',
     })
   } finally {
     await closeTestServer(server)

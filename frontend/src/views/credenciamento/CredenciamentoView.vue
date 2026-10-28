@@ -5,6 +5,24 @@ import 'sweetalert2/dist/sweetalert2.min.css'
 import './CredenciamentoView.css'
 
 const participants = ref([])
+const environmentLabel = ref('AMBIENTE NÃO CONFIRMADO')
+
+async function loadEnvironment() {
+  try {
+    const health = await requestApi('/api/health')
+    const labels = {
+      oficial: 'BASE OFICIAL',
+      testes: 'AMBIENTE DE TESTES',
+      configurado: 'AMBIENTE CONFIGURADO',
+    }
+    environmentLabel.value =
+      health.status === 'ok'
+        ? (labels[health.ambiente] ?? 'AMBIENTE NÃO CONFIRMADO')
+        : 'AMBIENTE NÃO CONFIRMADO'
+  } catch {
+    environmentLabel.value = 'AMBIENTE NÃO CONFIRMADO'
+  }
+}
 const indicatorData = ref({
   totalServidores: 0,
   servidoresPendentes: 0,
@@ -155,7 +173,12 @@ async function loadIndicators() {
 }
 
 async function refreshData(page = currentPage.value) {
-  await Promise.all([loadDirectory(page), loadIndicators(), loadRecentConfirmations()])
+  await Promise.all([
+    loadDirectory(page),
+    loadIndicators(),
+    loadRecentConfirmations(),
+    loadEnvironment(),
+  ])
 }
 
 async function changePage(page) {
@@ -430,7 +453,7 @@ onMounted(refreshData)
           Confirme a chegada dos servidores para habilitá-los aos sorteios.
         </p>
       </div>
-      <div class="checkin-demo-tag">BASE OFICIAL · DADOS REAIS</div>
+      <div class="checkin-demo-tag">{{ environmentLabel }} · DADOS REAIS</div>
     </header>
 
     <section class="checkin-layout" aria-label="Credenciamento de servidores">
