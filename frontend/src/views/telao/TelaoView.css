@@ -247,9 +247,9 @@
   display: block;
   width: 100%;
   padding: 0 8%;
-  font-size: min(28cqw, calc(138cqw / var(--number-length)));
+  font-size: min(28cqw, calc(130cqw / var(--number-length)));
   font-weight: 950;
-  letter-spacing: -0.08em;
+  letter-spacing: normal;
   line-height: 1.05;
   text-align: center;
   white-space: nowrap;
@@ -313,6 +313,14 @@
   font-weight: 850;
 }
 
+.projection-workplace {
+  margin: 12px 0 0;
+  color: #d8e7f7;
+  font-size: clamp(15px, 1.5vw, 27px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .projection-prize span {
   margin-right: 0.5em;
 }
@@ -332,11 +340,13 @@
 }
 
 .phase-drawing .projection-ball {
-  animation: projection-bob 0.3s ease-in-out infinite alternate;
+  animation: projection-bob 0.65s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 .phase-drawing .projection-ring {
   animation-duration: 3s;
+  will-change: transform;
 }
 
 .phase-winner .projection-ball {
@@ -414,7 +424,7 @@
 
 @keyframes projection-bob {
   to {
-    transform: translateY(9px) rotate(4deg);
+    transform: translateY(9px);
   }
 }
 
@@ -474,7 +484,7 @@
   }
 
   .projection-ball-number {
-    font-size: min(28cqw, calc(138cqw / var(--number-length)));
+    font-size: min(28cqw, calc(130cqw / var(--number-length)));
   }
 
   .projection-copy {

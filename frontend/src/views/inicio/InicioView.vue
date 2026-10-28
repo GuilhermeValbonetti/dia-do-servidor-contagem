@@ -72,6 +72,7 @@ async function refreshHistory() {
       order: draw.numero,
       name: draw.nome,
       registration: draw.matricula,
+      localTrabalhoDescricao: draw.localTrabalhoDescricao?.trim() || '',
       institution:
         draw.origem === 'camara'
           ? 'Câmara Municipal de Contagem'
@@ -361,6 +362,11 @@ function formatDate(date) {
               <h3 class="home-showcase-name">{{ winner.name }}</h3>
               <span class="home-showcase-registration">Matrícula {{ winner.registration }}</span>
               <span class="home-showcase-registration">{{ winner.institution }}</span>
+              <span
+                v-if="winner.localTrabalhoDescricao"
+                class="home-showcase-registration home-workplace"
+                >Local de trabalho: {{ winner.localTrabalhoDescricao }}</span
+              >
               <div class="home-showcase-bottom">
                 <span>
                   <svg class="home-icon home-icon-sm" aria-hidden="true">
@@ -424,6 +430,9 @@ function formatDate(date) {
                 <strong>{{ winner.name }}</strong>
                 <span>Matrícula {{ winner.registration }}</span>
                 <span>{{ winner.institution }}</span>
+                <span v-if="winner.localTrabalhoDescricao" class="home-workplace"
+                  >Local de trabalho: {{ winner.localTrabalhoDescricao }}</span
+                >
               </div>
             </div>
             <div class="home-recent-prize">

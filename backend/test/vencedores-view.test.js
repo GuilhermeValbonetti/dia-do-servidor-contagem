@@ -73,6 +73,10 @@ function setup(fetch, reducedMotion = false) {
 }
 
 const makeDraw = (numero) => ({
+  localTrabalhoDescricao:
+    numero === 2
+      ? 'Unidade de atendimento com descrição extensa '.repeat(8)
+      : null,
   id: numero,
   numero,
   participanteId: numero + 100,
@@ -130,6 +134,7 @@ for (const count of [0, 1, 2, 3, 5]) {
       assert.match(html, /28\/10\/2026,? 09:00/)
     }
     if (count > 1) {
+      assert.match(html, /Local de trabalho: Unidade de atendimento/)
       assert.match(html, /Prefeitura Municipal de Contagem/)
       assert.match(html, /Sorteio sem prêmio associado/)
     }

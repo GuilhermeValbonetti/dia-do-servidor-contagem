@@ -27,6 +27,7 @@ let connectionCheckInterval
 let lastOperatorMessageAt = 0
 let messageRevision = 0
 let viewActive = true
+let digitsFrame = null
 const verifiedDraws = new Map()
 
 const connectionTimeout = 6000
@@ -64,6 +65,31 @@ function celebrate() {
   }, 5200)
 }
 
+function stopDigits() {
+  if (digitsFrame !== null) window.cancelAnimationFrame(digitsFrame)
+  digitsFrame = null
+}
+
+function startDigits() {
+  stopDigits()
+  if (reducedMotion) return
+  const start = performance.now()
+  let lastStep = -1
+  const update = (now) => {
+    if (!viewActive || phase.value !== 'drawing') return
+    const step = Math.floor((now - start) / 50)
+    if (step !== lastStep) {
+      lastStep = step
+      // Efeito local de apresentação: nunca seleciona participantes nem chama a API.
+      ballNumber.value = [1, 3, 7, 9, 3, 7]
+        .map((factor, position) => (step * factor + position * 2) % 10)
+        .join('')
+    }
+    digitsFrame = window.requestAnimationFrame(update)
+  }
+  digitsFrame = window.requestAnimationFrame(update)
+}
+
 async function handleProjectionMessage({ data }) {
   if (data?.sessionId !== projectionSessionId) return
 
@@ -90,6 +116,20 @@ async function handleProjectionMessage({ data }) {
 
   lastOperatorMessageAt = Date.now()
   connectionLost.value = false
+  if (
+    data.phase === 'drawing' &&
+    phase.value === 'drawing' &&
+    data.drawNumber === drawNumber.value
+  ) {
+    if (
+      reducedMotion &&
+      typeof data.ballNumber === 'string' &&
+      data.ballNumber !== ballNumber.value
+    ) {
+      ballNumber.value = data.ballNumber
+    }
+    return
+  }
   const revision = ++messageRevision
   const candidate =
     data.phase === 'winner' ? data.draw : data.phase === 'preparing' ? data.lastDraw : null
@@ -116,6 +156,8 @@ async function handleProjectionMessage({ data }) {
   phase.value = data.phase
   drawNumber.value = Number.isInteger(data.drawNumber) ? data.drawNumber : 1
   ballNumber.value = typeof data.ballNumber === 'string' ? data.ballNumber : '?'
+  if (data.phase === 'drawing') startDigits()
+  else stopDigits()
 
   if (data.phase === 'winner') {
     suppressEntrance.value =
@@ -142,6 +184,7 @@ async function handleProjectionMessage({ data }) {
 function markConnectionLost() {
   if (connectionLost.value) return
   connectionLost.value = true
+  stopDigits()
   messageRevision += 1
   phase.value = 'disconnected'
   winner.value = null
@@ -211,6 +254,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   viewActive = false
+  stopDigits()
   messageRevision += 1
   window.clearInterval(connectionCheckInterval)
   projectionChannel?.close()
@@ -325,7 +369,10 @@ onBeforeUnmount(() => {
               : 'Prefeitura Municipal de Contagem'
           }}
         </p>
-        <p v-else-if="phase === 'drawing'" class="projection-subtitle">
+        <p v-if="phase === 'winner' && winner?.localTrabalhoDescricao" class="projection-workplace">
+          Local de trabalho: {{ winner.localTrabalhoDescricao }}
+        </p>
+        <p v-if="phase === 'drawing'" class="projection-subtitle">
           O resultado será revelado em instantes.
         </p>
         <p v-else-if="phase === 'ready'" class="projection-subtitle">
@@ -372,7 +419,13 @@ onBeforeUnmount(() => {
     </footer>
     <p v-if="statusMessage" class="projection-status" role="status">{{ statusMessage }}</p>
 
-    <div v-if="showConfetti" :key="confettiRound" class="projection-confetti" aria-hidden="true">
+    <div
+      v-if="showConfetti"
+      :key="confettiRound"
+      v-memo="[confettiRound]"
+      class="projection-confetti"
+      aria-hidden="true"
+    >
       <span
         v-for="piece in confettiPieces"
         :key="piece.id"

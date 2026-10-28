@@ -23,6 +23,8 @@ const summary = {
   premiosDisponiveis: 3,
 }
 const draws = Array.from({ length: 6 }, (_, index) => ({
+  localTrabalhoDescricao:
+    index === 0 ? 'Unidade municipal de atendimento '.repeat(8) : null,
   id: 8 - index,
   numero: 8 - index,
   nome: `Servidor ${8 - index}`,
@@ -145,6 +147,7 @@ test('home and sidebar share real indicators, bound history and preserve the exi
   assert.equal((html.match(/class="home-metric"/g) ?? []).length, 4)
   assert.equal((html.match(/class="home-recent-card"/g) ?? []).length, 6)
   assert.match(html, /Prêmio real|Matrícula 0008/)
+  assert.match(html, /Local de trabalho: Unidade municipal de atendimento/)
   assert.match(html, /Sorteio sem prêmio associado/)
   assert.match(html, /Câmara Municipal de Contagem/)
   assert.match(html, /Prefeitura Municipal de Contagem/)

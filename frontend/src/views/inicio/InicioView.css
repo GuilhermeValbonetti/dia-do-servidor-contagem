@@ -5,6 +5,11 @@
   overflow: hidden;
 }
 
+.home-workplace {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .home-view {
   width: 100%;
   max-width: 1390px;

@@ -66,12 +66,53 @@ const showCelebrationConfetti = ref(false)
 const celebrationRound = ref(0)
 let confettiTimeout
 let celebrationTimeout
+let animationFrame = null
+let animationDeadline
+let finishAnimation = null
+
+const canUseDrawShortcut = computed(
+  () =>
+    Boolean(canStartDraw.value) &&
+    eligibleCount.value > 0 &&
+    !pendingOperation.value &&
+    !drawing.value &&
+    !confirming.value &&
+    ['ready', 'preparing'].includes(projectionPhase.value),
+)
+
+function handleDrawShortcut(event) {
+  if (
+    (event.code !== 'Space' && event.key !== ' ') ||
+    event.repeat ||
+    event.defaultPrevented ||
+    event.isComposing ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    !canUseDrawShortcut.value ||
+    !viewActive ||
+    Swal.isVisible() ||
+    document.querySelector('dialog[open], [aria-modal="true"]')
+  )
+    return
+  const interactive =
+    'input, select, textarea, button, a, summary, [contenteditable]:not([contenteditable="false"]), [role], [tabindex]'
+  if (
+    [event.target, document.activeElement].some(
+      (element) => element?.isContentEditable || element?.closest?.(interactive),
+    )
+  )
+    return
+  event.preventDefault()
+  void confirmDraw()
+}
 
 function sendProjectionState(snapshot = false) {
   if (!projectionChannel || !projectionChannelActive) return
 
   const phase = projectionPhase.value
-  const draw = latestDraw.value
+  const draw = phase === 'winner' || phase === 'preparing' ? latestDraw.value : null
   const projectionDraw = draw
     ? {
         id: draw.id,
@@ -81,6 +122,8 @@ function sendProjectionState(snapshot = false) {
         nome: draw.nome,
         matricula: draw.matricula,
         origem: draw.origem,
+        localTrabalhoCodigo: draw.localTrabalhoCodigo ?? null,
+        localTrabalhoDescricao: draw.localTrabalhoDescricao ?? null,
         premioId: draw.premioId,
         premioNome: draw.premioNome,
       }
@@ -320,32 +363,35 @@ async function animateDraw(draw) {
   sendProjectionState()
 
   if (!reducedMotion) {
-    const digitSteps = [1, 3, 7, 9, 3, 7]
     const animationStart = performance.now()
-    let tick = 0
-
+    let lastStep = -1
     await new Promise((resolve) => {
-      const animateDigits = () => {
-        if (!viewActive) {
-          resolve()
-          return
-        }
-        const elapsed = performance.now() - animationStart
-        ballNumber.value = digitSteps
-          .map((step, position) => (tick * step + position * 2) % 10)
-          .join('')
-        sendProjectionState()
-        tick += 1
-
-        if (elapsed >= duration) {
-          resolve()
-          return
-        }
-
-        window.setTimeout(animateDigits, 45 + (elapsed / duration) * 110)
+      finishAnimation = () => {
+        window.clearTimeout(animationDeadline)
+        if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+        animationFrame = null
+        finishAnimation = null
+        resolve()
       }
-
-      animateDigits()
+      // A revelação continua mesmo quando o navegador pausa os quadros desta janela.
+      animationDeadline = window.setTimeout(() => finishAnimation?.(), duration)
+      const animateDigits = (now) => {
+        if (!viewActive || now - animationStart >= duration) {
+          finishAnimation?.()
+          return
+        }
+        // Atualiza só os dígitos a 20 Hz; o movimento contínuo permanece em CSS.
+        const step = Math.floor((now - animationStart) / 50)
+        if (step !== lastStep) {
+          lastStep = step
+          ballNumber.value = [1, 3, 7, 9, 3, 7]
+            .map((factor, position) => (step * factor + position * 2) % 10)
+            .join('')
+          sendProjectionState()
+        }
+        animationFrame = window.requestAnimationFrame(animateDigits)
+      }
+      animationFrame = window.requestAnimationFrame(animateDigits)
     })
   } else {
     await new Promise((resolve) => window.setTimeout(resolve, duration))
@@ -373,6 +419,10 @@ async function animateDraw(draw) {
 
 onBeforeUnmount(() => {
   viewActive = false
+  window.removeEventListener('keydown', handleDrawShortcut)
+  if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+  finishAnimation?.()
+  finishAnimation = null
   announceProjectionDisconnect()
   window.clearInterval(projectionHeartbeatInterval)
   projectionChannelActive = false
@@ -382,6 +432,7 @@ onBeforeUnmount(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleDrawShortcut)
   await refreshData(true)
   if (!viewActive) return
   sendProjectionState(true)
@@ -475,7 +526,11 @@ onMounted(async () => {
             <div class="draw-bingo-ring"></div>
             <div class="draw-bingo-ball">
               <span class="draw-ball-label">MATRÍCULA</span>
-              <strong class="draw-ball-number">{{ ballNumber }}</strong>
+              <strong
+                class="draw-ball-number"
+                :style="{ '--number-length': Math.max(ballNumber.length, 1) }"
+                >{{ ballNumber }}</strong
+              >
               <span class="draw-ball-caption">{{
                 latestDraw && !drawing ? 'SORTEADO' : 'Nº DA SORTE'
               }}</span>
@@ -514,6 +569,9 @@ onMounted(async () => {
             <svg class="draw-icon" aria-hidden="true"><use href="#draw-gift" /></svg>
             <span>{{ latestDraw.premioNome }}</span>
           </div>
+          <p v-if="latestDraw?.localTrabalhoDescricao && !drawing" class="draw-stage-subtitle">
+            Local de trabalho: {{ latestDraw.localTrabalhoDescricao }}
+          </p>
         </div>
 
         <section v-if="latestDraw" class="draw-winner-result" aria-labelledby="draw-winner-title">
@@ -532,6 +590,9 @@ onMounted(async () => {
             {{ latestDraw.premioNome }}
           </p>
           <p v-else class="draw-winner-prize is-no-prize">Sorteio realizado sem prêmio associado</p>
+          <p v-if="latestDraw.localTrabalhoDescricao" class="draw-winner-meta">
+            Local de trabalho: {{ latestDraw.localTrabalhoDescricao }}
+          </p>
           <div class="draw-winner-actions">
             <button class="draw-celebrate-button" type="button" @click="celebrate([latestDraw])">
               <svg class="draw-icon" aria-hidden="true"><use href="#draw-sparkles" /></svg>
@@ -615,6 +676,7 @@ onMounted(async () => {
 
           <button
             class="draw-start-button"
+            :aria-keyshortcuts="canUseDrawShortcut ? 'Space' : undefined"
             type="button"
             :disabled="drawing || confirming || !canStartDraw"
             @click="confirmDraw"
@@ -630,6 +692,9 @@ onMounted(async () => {
                     : 'Iniciar sorteio'
             }}
           </button>
+          <p v-if="canUseDrawShortcut" class="draw-field-note">
+            Pressione <kbd>Espaço</kbd> para iniciar o sorteio.
+          </p>
           <button
             v-if="latestDraw && projectionPhase === 'winner'"
             class="draw-prepare-button"

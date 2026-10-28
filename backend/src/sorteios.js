@@ -1,9 +1,10 @@
 import { randomInt } from 'node:crypto'
+import { workplaceFields } from './workplace-fields.js'
 
-const drawSelect = `
+const selectDraw = (db) => `
   SELECT so.id, so.numero, so.servidor_id AS participanteId,
     s.nome, s.matricula, s.origem, so.sorteado_em AS sorteadoEm,
-    so.premio_id AS premioId, p.nome AS premioNome
+    so.premio_id AS premioId, p.nome AS premioNome, ${workplaceFields(db)}
   FROM sorteios so JOIN servidores s ON s.id = so.servidor_id
   LEFT JOIN premios p ON p.id = so.premio_id 
 `
@@ -16,6 +17,7 @@ const fail = (status, message) => {
 }
 
 export function registerDrawRoutes(app, db) {
+  const drawSelect = selectDraw(db)
   app.get('/api/sorteios', (request, response) => {
     const page = Number(request.query.page ?? 1)
     const limit = Number(request.query.limit ?? 20)

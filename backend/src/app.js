@@ -1,8 +1,10 @@
 import express from 'express'
 import { registerDrawRoutes } from './sorteios.js'
+import { workplaceFields } from './workplace-fields.js'
 
 export function createApp(db) {
   const app = express()
+  const workplaceColumns = workplaceFields(db)
 
   app.use(express.json({ limit: '10kb' }))
 
@@ -90,6 +92,7 @@ export function createApp(db) {
           s.nome,
           s.matricula,
           s.origem,
+          ${workplaceColumns},
           CASE WHEN c.servidor_id IS NULL THEN 0 ELSE 1 END AS credenciado,
           c.confirmado_em AS confirmadoEm,
           CASE WHEN so.servidor_id IS NULL THEN 0 ELSE 1 END AS contemplado
@@ -124,7 +127,7 @@ export function createApp(db) {
     const dados = db
       .prepare(
         `
-      SELECT s.id, s.nome, s.matricula, s.origem, 1 AS credenciado,
+      SELECT s.id, s.nome, s.matricula, s.origem, ${workplaceColumns}, 1 AS credenciado,
         c.confirmado_em AS confirmadoEm,
         CASE WHEN so.servidor_id IS NULL THEN 0 ELSE 1 END AS contemplado
       FROM credenciamentos c

@@ -1,18 +1,18 @@
 # Local de trabalho — investigação e plano para aprovação
 
-Parte A concluída em 28/10/2026. Este documento não executa migrações. Nenhuma alteração de schema ou complementação foi aplicada aos bancos oficial, de testes manuais ou base limpa.
+Parte A concluída em 28/10/2026. A Parte B foi posteriormente autorizada e aplicada exclusivamente no banco de testes manuais, conforme o registro ao final. O banco oficial e a base limpa não foram alterados.
 
 ## Fontes verificadas
 
 Em `arquivos funcionarios/Servidores_Ativos_Corrigido.xlsx`, a primeira linha contém:
 
-| Coluna | Cabeçalho | Uso proposto |
-| --- | --- | --- |
-| A | FOLHA | Não interpretar como secretaria ou local |
-| B | NOME | Conferência adicional, nunca chave de associação |
-| C | MATRICULA | Associação exata como texto, combinada com origem `prefeitura` |
-| D | COD LOCAL DE TRABALHO | Código do local, preservado como texto |
-| E | DESCR LOCAL DE TRABALHO | Descrição do local, exibida com o rótulo “Local de trabalho” |
+| Coluna | Cabeçalho               | Uso proposto                                                   |
+| ------ | ----------------------- | -------------------------------------------------------------- |
+| A      | FOLHA                   | Não interpretar como secretaria ou local                       |
+| B      | NOME                    | Conferência adicional, nunca chave de associação               |
+| C      | MATRICULA               | Associação exata como texto, combinada com origem `prefeitura` |
+| D      | COD LOCAL DE TRABALHO   | Código do local, preservado como texto                         |
+| E      | DESCR LOCAL DE TRABALHO | Descrição do local, exibida com o rótulo “Local de trabalho”   |
 
 Há 13.138 registros e 13.138 matrículas distintas, sem matrícula vazia. Todos possuem código e descrição de local. Foram encontrados 913 códigos distintos e 898 descrições distintas. Não deduplicar por descrição nem supor correspondência única entre descrição e código. Não existe uma coluna específica de secretaria, órgão ou lotação: não extrair uma secretaria presumida dos textos.
 
@@ -26,13 +26,13 @@ As 13.138 matrículas da Prefeitura correspondem exatamente aos registros da Pre
 
 Consultas somente leitura encontraram:
 
-| Banco | Servidores | Credenciamentos | Prêmios | Sorteios | Erros de chave estrangeira |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Oficial | 13.305 | 0 | 0 | 0 | 0 |
-| Testes manuais | 13.305 | 5 | 2 | 5 | 0 |
-| Base limpa | 13.305 | 0 | 0 | 0 | 0 |
+| Banco          | Servidores | Credenciamentos | Prêmios | Sorteios | Erros de chave estrangeira |
+| -------------- | ---------: | --------------: | ------: | -------: | -------------------------: |
+| Oficial        |     13.305 |               0 |       0 |        0 |                          0 |
+| Testes manuais |     13.305 |               5 |       2 |        5 |                          0 |
+| Base limpa     |     13.305 |               0 |       0 |        0 |                          0 |
 
-## Alteração mínima proposta — ainda não aplicada
+## Alteração mínima — aplicada somente no banco de testes
 
 Adicionar duas colunas opcionais à própria tabela `servidores`, sem recriação:
 
@@ -63,4 +63,46 @@ Propagar os campos pelos mapeamentos e pelo estado enviado pelo operador ao Tel�
 
 Testar descrições longas, quebras de linha, leitura à distância e registros da Câmara sem local. Confirmar que o enriquecimento não altera números, associações, idempotência, histórico ou premiação.
 
-**Aguardando autorização:** implementação e teste da migração, escolha dos bancos persistentes a atualizar e integração dos novos campos nas telas. Nenhuma dessas ações foi executada na Parte A.
+## Execução da Parte B — 28/10/2026
+
+Autorização recebida exclusivamente para `dia-do-servidor-teste.sqlite`. A API de testes e seu supervisor foram interrompidos antes da operação. O estado atual tinha 6 credenciamentos, 2 prêmios e 6 sorteios (os números da investigação anterior acima são históricos).
+
+Foi implementado o comando manual `src/migrate-workplaces.js`, sem importação automática na inicialização da API:
+
+- `node src/migrate-workplaces.js --preview`: valida fonte e correspondência, somente leitura.
+- `node src/migrate-workplaces.js --validate-copy`: cria um backup em diretório temporário, valida, migra a cópia, testa reaplicação e descarta a cópia.
+- `node src/migrate-workplaces.js --apply-test`: bloqueia o ambiente de testes, valida, cria e confere backup persistente e migra somente o caminho fixo do banco de testes.
+
+O comando não aceita caminhos personalizados nem um destino oficial/base. Usa o bloqueio já adotado pela API de testes, verifica isolamento do arquivo, links e integridade, e rejeita conflitos existentes. A migração de schema/dados é transacional. O backup usa a API de backup do SQLite, considerando o WAL; seu conteúdo foi conferido por hashes lógicos de todas as tabelas e verificações de integridade antes da aplicação. Se o banco mudar entre backup e aplicação, a operação é cancelada.
+
+Backup preservado: `backend/data/dia-do-servidor-teste-backup-local-1793190546093.sqlite` (ignorado pelo Git).
+
+Resultado da simulação e aplicação: 13.138 correspondências e locais preenchidos, nenhum sem correspondência, 167 servidores da Câmara com campos nulos e 13.305 IDs preservados. Reaplicação na cópia: zero atualizações. As identidades completas dos servidores e as tabelas de credenciamentos, prêmios, sorteios e solicitações foram comparadas por hashes lógicos antes/depois. O banco aplicado foi reaberto e novamente comparado ao backup: nenhuma alteração nesses dados. `integrity_check = ok`; `foreign_key_check` sem erros.
+
+As APIs existentes retornam `localTrabalhoCodigo` e `localTrabalhoDescricao`. Em bancos sem as novas colunas, retornam `null` por seleção compatível, sem alteração automática de schema. A API deve ser reiniciada após uma migração explícita para reconhecer as novas colunas.
+
+As telas Credenciamento, Sorteio, Telão, Vencedores e Início exibem a descrição com o rótulo “Local de trabalho” quando disponível. A Câmara e os bancos não migrados não exibem a linha. Os indicadores não foram alterados.
+
+Esse era o limite da autorização da Parte B. A autorização posterior e sua execução estão registradas abaixo.
+
+## Alinhamento final autorizado — 28/10/2026
+
+O pedido final autorizou explicitamente os três bancos. Foi executado manualmente `node src/align-workplace-databases.js --apply`, com caminhos fixos, bloqueio da API de testes, verificação de isolamento, backups pela API SQLite e conferência integral dos backups. Todos os backups e simulações descartáveis, incluindo reaplicação idempotente, terminaram antes da primeira alteração persistente.
+
+Destinos em `backend/data/`:
+
+| Banco                               | Locais complementados | Credenciamentos | Prêmios | Sorteios |
+| ----------------------------------- | --------------------: | --------------: | ------: | -------: |
+| `dia-do-servidor.sqlite`            |                13.138 |               0 |       0 |        0 |
+| `dia-do-servidor-teste.sqlite`      |    0 (já preenchidos) |              11 |       2 |       11 |
+| `dia-do-servidor-teste-base.sqlite` |                13.138 |               0 |       0 |        0 |
+
+Os três têm as duas colunas TEXT opcionais, 13.305 servidores, 13.138 locais completos da Prefeitura e 167 registros da Câmara com local nulo. IDs, identidades e conteúdo integral das demais tabelas foram preservados por comparação de hashes lógicos dentro da transação. Todos retornaram `integrity_check = ok` e zero erros em `foreign_key_check`. A proteção de somente leitura da base limpa foi restaurada. Nenhum sorteio foi executado nos bancos persistentes durante a validação.
+
+Backups validados, no mesmo diretório:
+
+- `dia-do-servidor-backup-alinhamento-1793192790536.sqlite`
+- `dia-do-servidor-teste-backup-alinhamento-1793192790536.sqlite`
+- `dia-do-servidor-teste-base-backup-alinhamento-1793192790536.sqlite`
+
+Relatório técnico local: `backend/data/alinhamento-locais-1793192790536.json`, com caminhos absolutos, contagens, hashes anteriores, simulações e resultados. A API de testes foi reiniciada após a migração. O comando é manual e não foi integrado à inicialização. A homologação no projetor do evento continua sendo uma etapa humana.

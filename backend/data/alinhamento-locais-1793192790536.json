@@ -1,0 +1,284 @@
+[
+  {
+    "target": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor.sqlite",
+    "backup": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor-backup-alinhamento-1793192790536.sqlite",
+    "backupValidado": true,
+    "before": {
+      "credenciamentos": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "premios": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "servidores": {
+        "total": 13305,
+        "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+      },
+      "sorteios": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    "simulation": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 13138,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "premios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "migration": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 13138,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "premios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "after": {
+      "totalServidores": 13305,
+      "prefeitura": 13138,
+      "camara": 167,
+      "credenciamentos": 0,
+      "premios": 0,
+      "sorteios": 0,
+      "integridade": "ok"
+    },
+    "foreignKeyErrors": 0,
+    "readOnlyRestored": true
+  },
+  {
+    "target": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor-teste.sqlite",
+    "backup": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor-teste-backup-alinhamento-1793192790536.sqlite",
+    "backupValidado": true,
+    "before": {
+      "credenciamentos": {
+        "total": 11,
+        "sha256": "1b53678f4dc63c7b18f9de3039100c4045650a660b9da1983a09671d2b990123"
+      },
+      "premios": {
+        "total": 2,
+        "sha256": "f0dae96a8f8d7778d61541bba9771f95b7e5c38537240c4ddcf0bfa802105045"
+      },
+      "servidores": {
+        "total": 13305,
+        "sha256": "bf53fbf010b9279a3e3eed9be9b0d4546d62851cb6db96eb5e31a6ffe4acf1d6"
+      },
+      "sorteio_solicitacoes": {
+        "total": 11,
+        "sha256": "e98d4d6c4029c4eff43200b7ea2902b5418c32637f30299aede314185d8e307a"
+      },
+      "sorteios": {
+        "total": 11,
+        "sha256": "588c4ce7d3d66ce74e67f5f95605a7b27f4276b4a01b1e06c25217be2085545b"
+      }
+    },
+    "simulation": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 0,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 11,
+          "sha256": "1b53678f4dc63c7b18f9de3039100c4045650a660b9da1983a09671d2b990123"
+        },
+        "premios": {
+          "total": 2,
+          "sha256": "f0dae96a8f8d7778d61541bba9771f95b7e5c38537240c4ddcf0bfa802105045"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteio_solicitacoes": {
+          "total": 11,
+          "sha256": "e98d4d6c4029c4eff43200b7ea2902b5418c32637f30299aede314185d8e307a"
+        },
+        "sorteios": {
+          "total": 11,
+          "sha256": "588c4ce7d3d66ce74e67f5f95605a7b27f4276b4a01b1e06c25217be2085545b"
+        }
+      }
+    },
+    "migration": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 0,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 11,
+          "sha256": "1b53678f4dc63c7b18f9de3039100c4045650a660b9da1983a09671d2b990123"
+        },
+        "premios": {
+          "total": 2,
+          "sha256": "f0dae96a8f8d7778d61541bba9771f95b7e5c38537240c4ddcf0bfa802105045"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteio_solicitacoes": {
+          "total": 11,
+          "sha256": "e98d4d6c4029c4eff43200b7ea2902b5418c32637f30299aede314185d8e307a"
+        },
+        "sorteios": {
+          "total": 11,
+          "sha256": "588c4ce7d3d66ce74e67f5f95605a7b27f4276b4a01b1e06c25217be2085545b"
+        }
+      }
+    },
+    "after": {
+      "totalServidores": 13305,
+      "prefeitura": 13138,
+      "camara": 167,
+      "credenciamentos": 11,
+      "premios": 2,
+      "sorteios": 11,
+      "integridade": "ok"
+    },
+    "foreignKeyErrors": 0,
+    "readOnlyRestored": true
+  },
+  {
+    "target": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor-teste-base.sqlite",
+    "backup": "C:\\Users\\guilherme.valbonetti\\Desktop\\SorteiosPMC\\dia-do-servidor-contagem\\backend\\data\\dia-do-servidor-teste-base-backup-alinhamento-1793192790536.sqlite",
+    "backupValidado": true,
+    "before": {
+      "credenciamentos": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "premios": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "servidores": {
+        "total": 13305,
+        "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+      },
+      "sorteios": {
+        "total": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    "simulation": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 13138,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "premios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "migration": {
+      "prefeitura": 13138,
+      "camara": 167,
+      "correspondencias": 13138,
+      "semCorrespondencia": 0,
+      "atualizados": 13138,
+      "comLocal": 13138,
+      "integridade": "ok",
+      "errosChavesEstrangeiras": 0,
+      "preservacao": {
+        "credenciamentos": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "premios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "servidores": {
+          "total": 13305,
+          "sha256": "4886474d23d2c0ab561e247fa1a44ddd0dbcc5782cbebdb0d726ef8eadb899de"
+        },
+        "sorteios": {
+          "total": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "after": {
+      "totalServidores": 13305,
+      "prefeitura": 13138,
+      "camara": 167,
+      "credenciamentos": 0,
+      "premios": 0,
+      "sorteios": 0,
+      "integridade": "ok"
+    },
+    "foreignKeyErrors": 0,
+    "readOnlyRestored": true
+  }
+]

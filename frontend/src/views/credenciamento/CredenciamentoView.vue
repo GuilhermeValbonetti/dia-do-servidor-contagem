@@ -526,6 +526,9 @@ onMounted(refreshData)
                 <div class="checkin-person-identity">
                   <h4>{{ person.nome }}</h4>
                   <p>{{ institutionName(person.origem) }}</p>
+                  <p v-if="person.localTrabalhoDescricao" class="checkin-workplace">
+                    Local de trabalho: {{ person.localTrabalhoDescricao }}
+                  </p>
                 </div>
               </div>
               <div class="checkin-person-details">
@@ -618,6 +621,9 @@ onMounted(refreshData)
               <div class="checkin-confirmation-person">
                 <strong>{{ person.nome }}</strong>
                 <small>{{ person.matricula }} · {{ institutionName(person.origem) }}</small>
+                <small v-if="person.localTrabalhoDescricao" class="checkin-workplace"
+                  >Local de trabalho: {{ person.localTrabalhoDescricao }}</small
+                >
                 <small
                   ><time :datetime="person.confirmadoEm">{{
                     formatConfirmation(person.confirmadoEm)
@@ -746,6 +752,9 @@ onMounted(refreshData)
             <div>
               <strong>{{ person.nome }}</strong>
               <span>{{ institutionName(person.origem) }}</span>
+              <span v-if="person.localTrabalhoDescricao" class="checkin-workplace"
+                >Local de trabalho: {{ person.localTrabalhoDescricao }}</span
+              >
             </div>
           </div>
           <span class="checkin-participant-number">{{ person.matricula }}</span>

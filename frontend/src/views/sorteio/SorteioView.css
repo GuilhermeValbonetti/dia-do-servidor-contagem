@@ -510,6 +510,7 @@
 }
 
 .draw-bingo-ball {
+  container-type: inline-size;
   display: flex;
   width: 81%;
   height: 81%;
@@ -540,10 +541,14 @@
 }
 
 .draw-ball-number {
+  width: 100%;
   min-height: 1.12em;
-  font-size: clamp(46px, 7vw, 82px);
+  padding: 0 8%;
+  font-size: min(28cqw, calc(130cqw / var(--number-length)));
+  text-align: center;
+  white-space: nowrap;
   font-weight: 950;
-  letter-spacing: -0.08em;
+  letter-spacing: normal;
   line-height: 1.12;
   font-variant-numeric: tabular-nums;
 }
@@ -580,6 +585,7 @@
 }
 
 .draw-stage.is-drawing .draw-bingo-ball {
+  container-type: inline-size;
   animation: draw-ball-bounce 0.24s ease-in-out infinite alternate;
 }
 
@@ -1125,11 +1131,11 @@
 
 @keyframes draw-ball-bounce {
   from {
-    transform: translateY(-6px) rotate(-3deg);
+    transform: translateY(-6px);
   }
 
   to {
-    transform: translateY(7px) rotate(3deg);
+    transform: translateY(7px);
   }
 }
 
@@ -1260,10 +1266,6 @@
     width: min(215px, 62vw);
   }
 
-  .draw-ball-number {
-    font-size: clamp(42px, 13vw, 64px);
-  }
-
   .draw-stage-caption {
     font-size: 23px;
   }
@@ -1277,6 +1279,7 @@
   .draw-bingo-ring,
   .draw-stage.is-drawing .draw-stage-intro,
   .draw-stage.is-drawing .draw-bingo-ball {
+    container-type: inline-size;
     animation: none;
   }
 

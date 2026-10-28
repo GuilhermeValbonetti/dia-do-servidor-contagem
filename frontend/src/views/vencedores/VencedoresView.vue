@@ -80,6 +80,7 @@ async function getHistoryPage(page, limit = pageSize) {
       nome: draw.nome,
       matricula: draw.matricula,
       origem: draw.origem,
+      localTrabalhoDescricao: draw.localTrabalhoDescricao?.trim() || '',
       drawnAt: draw.sorteadoEm,
       premio: draw.premioNome ?? '',
     })),
@@ -356,6 +357,9 @@ onBeforeUnmount(() => {
                   <strong>{{ winner.nome }}</strong>
                   <span>Matrícula {{ winner.matricula }}</span>
                   <span>{{ institutionName(winner.origem) }}</span>
+                  <span v-if="winner.localTrabalhoDescricao"
+                    >Local de trabalho: {{ winner.localTrabalhoDescricao }}</span
+                  >
                 </div>
                 <span class="winner-status">
                   <svg class="winners-icon winners-icon-small" aria-hidden="true">
@@ -494,6 +498,9 @@ onBeforeUnmount(() => {
         <p id="celebration-description" class="celebration-meta">
           Matrícula {{ celebrationWinners[0].matricula }} ·
           {{ institutionName(celebrationWinners[0].origem) }}
+        </p>
+        <p v-if="celebrationWinners[0].localTrabalhoDescricao" class="celebration-meta">
+          Local de trabalho: {{ celebrationWinners[0].localTrabalhoDescricao }}
         </p>
         <div class="celebration-prize" :class="{ 'no-prize': !celebrationWinners[0].premio }">
           <svg class="winners-icon winners-icon-small" aria-hidden="true">
