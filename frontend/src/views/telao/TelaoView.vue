@@ -20,6 +20,7 @@ const confettiRound = ref(0)
 const fullscreen = ref(false)
 const statusMessage = ref('')
 const connectionLost = ref(false)
+const sessionEnded = ref(false)
 const suppressEntrance = ref(false)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let confettiTimeout
@@ -28,9 +29,12 @@ let lastOperatorMessageAt = 0
 let messageRevision = 0
 let viewActive = true
 let digitsFrame = null
+let awaitingApiSync = false
 const verifiedDraws = new Map()
 
 const connectionTimeout = 6000
+const disconnectTimeout = 5000
+let disconnectDeadline = null
 const connectionCheckFrequency = 1000
 
 const confettiPieces = Array.from({ length: 180 }, (_, index) => ({
@@ -91,18 +95,20 @@ function startDigits() {
 }
 
 async function handleProjectionMessage({ data }) {
-  if (data?.sessionId !== projectionSessionId) return
+  if (sessionEnded.value || data?.sessionId !== projectionSessionId) return
 
   if (data.type === 'heartbeat') {
     const wasDisconnected = connectionLost.value
     lastOperatorMessageAt = Date.now()
     connectionLost.value = false
-    if (wasDisconnected) requestSnapshot()
+    disconnectDeadline = null
+    if (wasDisconnected || awaitingApiSync) requestSnapshot()
     return
   }
 
   if (data.type === 'operator-disconnected') {
     markConnectionLost()
+    disconnectDeadline = Date.now() + 3000
     return
   }
 
@@ -116,6 +122,7 @@ async function handleProjectionMessage({ data }) {
 
   lastOperatorMessageAt = Date.now()
   connectionLost.value = false
+  disconnectDeadline = null
   if (
     data.phase === 'drawing' &&
     phase.value === 'drawing' &&
@@ -141,10 +148,15 @@ async function handleProjectionMessage({ data }) {
         verifiedDraws.get(candidate.id) ?? (await requestDrawApi(`/api/sorteios/${candidate.id}`))
       if (!viewActive || revision !== messageRevision) return
       verifiedDraws.set(confirmedDraw.id, confirmedDraw)
+      awaitingApiSync = false
       statusMessage.value = ''
     } catch {
       if (viewActive && revision === messageRevision) {
-        markConnectionLost()
+        awaitingApiSync = true
+        stopDigits()
+        phase.value = 'disconnected'
+        winner.value = null
+        showConfetti.value = false
         statusMessage.value =
           'Não foi possível confirmar o resultado na API. Aguardando nova sincronização.'
       }
@@ -181,6 +193,36 @@ async function handleProjectionMessage({ data }) {
   }
 }
 
+function endOperatorSession() {
+  if (sessionEnded.value) return
+  markConnectionLost()
+  sessionEnded.value = true
+  messageRevision += 1
+  lastWinner.value = null
+  statusMessage.value = 'A conexão com o operador foi encerrada. Você pode fechar esta janela.'
+  window.clearInterval(connectionCheckInterval)
+  projectionChannel?.close()
+  try {
+    window.close()
+  } catch {
+    // O aviso permanece visível quando o navegador impede o fechamento.
+  }
+}
+
+function checkOperatorConnection() {
+  if (sessionEnded.value) return
+  const silence = Date.now() - lastOperatorMessageAt
+  if (
+    (disconnectDeadline !== null && Date.now() >= disconnectDeadline) ||
+    silence >= disconnectTimeout
+  ) {
+    endOperatorSession()
+  } else if (silence >= connectionTimeout) {
+    markConnectionLost()
+    requestSnapshot()
+  }
+}
+
 function markConnectionLost() {
   if (connectionLost.value) return
   connectionLost.value = true
@@ -198,11 +240,16 @@ async function recoverLastDraw() {
   const revision = messageRevision
   try {
     const history = await requestDrawApi('/api/sorteios?limit=1')
-    if (viewActive && revision === messageRevision && phase.value === 'disconnected') {
+    if (
+      viewActive &&
+      !sessionEnded.value &&
+      revision === messageRevision &&
+      phase.value === 'disconnected'
+    ) {
       lastWinner.value = history.dados[0] ?? null
     }
   } catch {
-    if (viewActive && revision === messageRevision)
+    if (viewActive && !sessionEnded.value && revision === messageRevision)
       statusMessage.value = 'Não foi possível recuperar o último sorteio na API.'
   }
 }
@@ -244,9 +291,7 @@ onMounted(() => {
     projectionChannel.addEventListener('message', handleProjectionMessage)
     lastOperatorMessageAt = Date.now()
     requestSnapshot()
-    connectionCheckInterval = window.setInterval(() => {
-      if (Date.now() - lastOperatorMessageAt >= connectionTimeout) markConnectionLost()
-    }, connectionCheckFrequency)
+    connectionCheckInterval = window.setInterval(checkOperatorConnection, connectionCheckFrequency)
   }
 
   document.addEventListener('fullscreenchange', updateFullscreenState)
@@ -264,7 +309,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <section v-if="sessionEnded" class="projection-screen phase-disconnected" role="status">
+    <h1>Conexão com o operador encerrada</h1>
+    <p>{{ statusMessage }}</p>
+  </section>
   <section
+    v-else
     ref="projectionScreen"
     class="projection-screen"
     :class="[`phase-${phase}`, { 'is-snapshot': suppressEntrance }]"

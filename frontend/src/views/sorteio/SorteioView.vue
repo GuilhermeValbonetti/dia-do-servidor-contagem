@@ -56,6 +56,16 @@ const draws = ref([])
 const selectedPrizeId = ref('')
 const drawing = ref(false)
 const confirming = ref(false)
+let spaceHeld = false
+let drawConfirmationOpen = false
+let drawConfirmationSubmitted = false
+
+function releaseDrawShortcut(event) {
+  if (event.code === 'Space' || event.key === ' ') {
+    spaceHeld = false
+    if (drawConfirmationOpen) event.preventDefault?.()
+  }
+}
 const projectionPhase = ref('ready')
 const ballNumber = ref('?')
 const showConfetti = ref(false)
@@ -81,6 +91,11 @@ const canUseDrawShortcut = computed(
 )
 
 function handleDrawShortcut(event) {
+  if ((event.code === 'Space' || event.key === ' ') && drawConfirmationOpen && event.repeat) {
+    event.preventDefault()
+    event.stopImmediatePropagation?.()
+    return
+  }
   if (
     (event.code !== 'Space' && event.key !== ' ') ||
     event.repeat ||
@@ -90,8 +105,21 @@ function handleDrawShortcut(event) {
     event.ctrlKey ||
     event.metaKey ||
     event.shiftKey ||
+    !viewActive
+  )
+    return
+  if (drawConfirmationOpen) {
+    event.preventDefault()
+    event.stopImmediatePropagation?.()
+    if (spaceHeld || drawConfirmationSubmitted) return
+    spaceHeld = true
+    drawConfirmationSubmitted = true
+    Swal.clickConfirm()
+    return
+  }
+  if (
+    spaceHeld ||
     !canUseDrawShortcut.value ||
-    !viewActive ||
     Swal.isVisible() ||
     document.querySelector('dialog[open], [aria-modal="true"]')
   )
@@ -105,6 +133,7 @@ function handleDrawShortcut(event) {
   )
     return
   event.preventDefault()
+  spaceHeld = true
   void confirmDraw()
 }
 
@@ -293,7 +322,14 @@ async function confirmDraw() {
   confirming.value = true
   try {
     pendingOperation.value = readPendingDraw()
+    drawConfirmationSubmitted = false
     const result = await Swal.fire({
+      didOpen: () => {
+        drawConfirmationOpen = true
+      },
+      willClose: () => {
+        drawConfirmationOpen = false
+      },
       icon: 'question',
       title: pendingOperation.value ? 'Recuperar operação pendente?' : 'Confirmar sorteio?',
       text: pendingOperation.value
@@ -306,6 +342,7 @@ async function confirmDraw() {
       cancelButtonColor: '#65758a',
       reverseButtons: true,
     })
+    drawConfirmationOpen = false
     if (!result.isConfirmed || !viewActive) return
     const operation = pendingOperation.value ?? {
       chave: crypto.randomUUID(),
@@ -347,6 +384,7 @@ async function confirmDraw() {
     })
     await refreshData(true)
   } finally {
+    drawConfirmationOpen = false
     confirming.value = false
   }
 }
@@ -419,7 +457,9 @@ async function animateDraw(draw) {
 
 onBeforeUnmount(() => {
   viewActive = false
-  window.removeEventListener('keydown', handleDrawShortcut)
+  window.removeEventListener('keydown', handleDrawShortcut, true)
+  window.removeEventListener('keyup', releaseDrawShortcut, true)
+  window.removeEventListener('pagehide', announceProjectionDisconnect)
   if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
   finishAnimation?.()
   finishAnimation = null
@@ -432,7 +472,9 @@ onBeforeUnmount(() => {
 })
 
 onMounted(async () => {
-  window.addEventListener('keydown', handleDrawShortcut)
+  window.addEventListener('keydown', handleDrawShortcut, true)
+  window.addEventListener('keyup', releaseDrawShortcut, true)
+  window.addEventListener('pagehide', announceProjectionDisconnect)
   await refreshData(true)
   if (!viewActive) return
   sendProjectionState(true)

@@ -52,6 +52,8 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
   const timers = new Map()
   let timerId = 0
   let frameId = 0
+  let now = 1000
+  let closes = 0
   class Channel {
     postMessage(message) {
       messages.push(message)
@@ -65,6 +67,11 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
     computed,
     nextTick,
     fetch,
+    Date: class extends Date {
+      static now() {
+        return now
+      }
+    },
     performance: { now: () => 0 },
     crypto: { randomUUID },
     URLSearchParams,
@@ -81,6 +88,9 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
       removeItem: (key) => storage.delete(key),
     },
     window: {
+      close: () => {
+        closes += 1
+      },
       addEventListener: (type, handler) => listeners.set(type, handler),
       removeEventListener: (type, handler) => {
         if (listeners.get(type) === handler) listeners.delete(type)
@@ -138,6 +148,10 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
     context,
     listeners,
     frames,
+    advanceTime: (ms) => {
+      now += ms
+    },
+    closeCount: () => closes,
     fireTimer: (ms) => {
       for (const [id, timer] of [...timers]) {
         if (timer.ms === ms) {
@@ -211,6 +225,157 @@ test('space shortcut uses the button flow once and does not steal interactive or
   assert.equal(app.view.latestDraw.value.id, draw.id)
   app.unmount[0]()
   assert.ok(!app.listeners.has('keydown'))
+})
+
+test('two independent space presses confirm only one operation, including competing clicks', async () => {
+  let posts = 0
+  let resolveModal
+  let modalOpen = false
+  const app = setup('sorteio/SorteioView.vue', async (url, options) => {
+    if (options?.method === 'POST') {
+      posts += 1
+      return json(draw, 201)
+    }
+    return url === '/api/premios' ? json({ dados: [] }) : json(history())
+  })
+  await app.mounted[0]()
+  app.context.Swal.isVisible = () => modalOpen
+  app.context.Swal.fire = (options) =>
+    new Promise((resolve) => {
+      modalOpen = true
+      options.didOpen()
+      resolveModal = () => {
+        modalOpen = false
+        options.willClose()
+        resolve({ isConfirmed: true })
+      }
+    })
+  app.context.Swal.clickConfirm = () => resolveModal()
+  const key = (extra = {}) => ({
+    code: 'Space',
+    preventDefault() {},
+    stopImmediatePropagation() {},
+    ...extra,
+  })
+  app.view.handleDrawShortcut(key())
+  assert.equal(modalOpen, true)
+  assert.equal(posts, 0)
+  app.context.document.activeElement = { closest: () => ({}) }
+  app.view.handleDrawShortcut(key({ repeat: true }))
+  app.view.handleDrawShortcut(key())
+  assert.equal(posts, 0)
+  app.view.releaseDrawShortcut(key())
+  app.view.handleDrawShortcut(key())
+  app.view.handleDrawShortcut(key())
+  await app.view.confirmDraw()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(posts, 1)
+  assert.equal(app.view.latestDraw.value.id, draw.id)
+  app.unmount[0]()
+})
+
+test('projection tolerates a temporary silence, recovers a snapshot and closes after persistent silence', async () => {
+  const app = setup('telao/TelaoView.vue', async () => json(history([draw])))
+  app.mounted[0]()
+  await app.view.handleProjectionMessage({
+    data: { type: 'state', sessionId: 'test', phase: 'drawing', drawNumber: 1 },
+  })
+  app.advanceTime(6000)
+  app.view.checkOperatorConnection()
+  assert.equal(app.view.connectionLost.value, true)
+  assert.equal(app.closeCount(), 0)
+  await app.view.handleProjectionMessage({
+    data: { type: 'heartbeat', sessionId: 'test' },
+  })
+  assert.equal(app.view.connectionLost.value, false)
+  assert.equal(app.messages.at(-1).type, 'snapshot-request')
+  app.advanceTime(14999)
+  app.view.checkOperatorConnection()
+  assert.equal(app.closeCount(), 0)
+  app.advanceTime(1)
+  app.view.checkOperatorConnection()
+  assert.equal(app.closeCount(), 1)
+  assert.equal(app.view.sessionEnded.value, true)
+  assert.equal(app.view.winner.value, null)
+  await app.view.handleProjectionMessage({
+    data: { type: 'state', sessionId: 'test', phase: 'drawing' },
+  })
+  assert.equal(app.view.phase.value, 'disconnected')
+})
+
+test('normal operator shutdown is announced and projection uses a recoverable grace period', async () => {
+  const operator = setup('sorteio/SorteioView.vue', async (url) =>
+    url === '/api/premios' ? json({ dados: [] }) : json(history()),
+  )
+  await operator.mounted[0]()
+  operator.listeners.get('pagehide')()
+  assert.equal(operator.messages.at(-1).type, 'operator-disconnected')
+  const app = setup('telao/TelaoView.vue', async () => json(history()))
+  app.mounted[0]()
+  const disconnected = {
+    data: { type: 'operator-disconnected', sessionId: 'test' },
+  }
+  await app.view.handleProjectionMessage(disconnected)
+  app.advanceTime(2999)
+  app.view.checkOperatorConnection()
+  assert.equal(app.closeCount(), 0)
+  await app.view.handleProjectionMessage({
+    data: { type: 'heartbeat', sessionId: 'test' },
+  })
+  app.advanceTime(1)
+  app.view.checkOperatorConnection()
+  assert.equal(app.view.sessionEnded.value, false)
+  await app.view.handleProjectionMessage(disconnected)
+  app.advanceTime(3000)
+  app.context.window.close = () => {
+    throw new Error('Blocked')
+  }
+  app.view.checkOperatorConnection()
+  assert.equal(app.view.sessionEnded.value, true)
+  assert.match(app.view.statusMessage.value, /encerrada/)
+  operator.unmount[0]()
+})
+
+test('API failures do not end a live operator session', async () => {
+  const app = setup('telao/TelaoView.vue', async () => json({ erro: 'Temporário' }, 503))
+  app.mounted[0]()
+  await app.view.handleProjectionMessage({
+    data: { type: 'state', sessionId: 'test', phase: 'winner', draw },
+  })
+  assert.equal(app.view.connectionLost.value, false)
+  assert.equal(app.view.sessionEnded.value, false)
+  assert.match(app.view.statusMessage.value, /API/)
+  for (let i = 0; i < 10; i += 1) {
+    app.advanceTime(2000)
+    await app.view.handleProjectionMessage({
+      data: { type: 'heartbeat', sessionId: 'test' },
+    })
+    app.view.checkOperatorConnection()
+  }
+  assert.equal(app.closeCount(), 0)
+})
+
+test('confirmed API operation completes once after operator shutdown during its request', async () => {
+  let finish
+  let posts = 0
+  const app = setup('sorteio/SorteioView.vue', async (url, options) => {
+    if (options?.method === 'POST') {
+      posts += 1
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    }
+    return url === '/api/premios' ? json({ dados: [] }) : json(history())
+  })
+  await app.mounted[0]()
+  const operation = app.view.confirmDraw()
+  await new Promise((resolve) => setImmediate(resolve))
+  app.unmount[0]()
+  finish(json(draw, 201))
+  await operation
+  assert.equal(posts, 1)
+  assert.equal(app.view.pendingOperation.value, null)
+  assert.ok(!app.messages.some(({ phase }) => phase === 'winner'))
 })
 
 test('space shortcut requires an eligible prepared round and never retries pending operations', async () => {
