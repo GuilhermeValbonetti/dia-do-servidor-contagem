@@ -259,6 +259,31 @@ export function createApp(db) {
     return response.json(indicators)
   })
 
+  app.get('/api/evento/indicadores', (_request, response) => {
+    const indicators = db
+      .prepare(
+        `
+      WITH contagens AS (
+        SELECT
+          (SELECT COUNT(*) FROM servidores) AS totalServidores,
+          (SELECT COUNT(*) FROM credenciamentos) AS presencasConfirmadas,
+          (SELECT COUNT(*) FROM sorteios) AS sorteiosRealizados,
+          (SELECT COUNT(*) FROM premios) AS premiosCadastrados,
+          (SELECT COUNT(premio_id) FROM sorteios) AS premiosUtilizados,
+          (SELECT COUNT(*) FROM credenciamentos c WHERE NOT EXISTS (
+            SELECT 1 FROM sorteios so WHERE so.servidor_id = c.servidor_id
+          )) AS elegiveis
+      )
+      SELECT *, totalServidores - presencasConfirmadas AS servidoresPendentes,
+        sorteiosRealizados AS servidoresContemplados,
+        premiosCadastrados - premiosUtilizados AS premiosDisponiveis
+      FROM contagens
+    `,
+      )
+      .get()
+    return response.json(indicators)
+  })
+
   app.get('/api/premios', (_request, response) => {
     const dados = db
       .prepare(

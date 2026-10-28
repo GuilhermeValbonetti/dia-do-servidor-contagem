@@ -18,6 +18,8 @@ export async function requestDrawApi(url, options) {
       status: response.status,
     })
   }
+  if (options?.method && options.method !== 'GET')
+    globalThis.window?.dispatchEvent?.(new Event('evento-atualizado'))
   return data
 }
 

@@ -1,42 +1,160 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { loadEventIndicators } from '../../services/evento'
+import { requestDrawApi } from '../../services/sorteios'
 import crestUrl from '../../assets/images/brasao-contagem.png'
 import './InicioView.css'
 
 const winners = ref([])
+const indicatorData = ref(null)
+const indicatorsLoading = ref(true)
+const indicatorsError = ref('')
+const historyLoading = ref(true)
+const historyError = ref('')
+const historyTotal = ref(null)
+let viewActive = true
+let summaryRevision = 0
+let historyRevision = 0
 
-const indicators = [
+function indicatorValue(field) {
+  return indicatorsLoading.value || indicatorsError.value || !indicatorData.value
+    ? '—'
+    : indicatorData.value[field]
+}
+
+async function refreshIndicators(fresh = false) {
+  const revision = ++summaryRevision
+  indicatorsLoading.value = true
+  indicatorsError.value = ''
+  try {
+    const data = await loadEventIndicators(fresh)
+    if (viewActive && revision === summaryRevision) indicatorData.value = data
+  } catch (error) {
+    if (viewActive && revision === summaryRevision) indicatorsError.value = error.message
+  } finally {
+    if (viewActive && revision === summaryRevision) indicatorsLoading.value = false
+  }
+}
+
+async function refreshHistory() {
+  const revision = ++historyRevision
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const data = await requestDrawApi('/api/sorteios?limit=6')
+    if (
+      !Array.isArray(data?.dados) ||
+      data.dados.length > 6 ||
+      !Number.isSafeInteger(data?.paginacao?.total) ||
+      data.paginacao.total < data.dados.length ||
+      new Set(data.dados.map((draw) => draw?.id)).size !== data.dados.length ||
+      !data.dados.every(
+        (draw) =>
+          draw &&
+          Number.isSafeInteger(draw.id) &&
+          draw.id > 0 &&
+          Number.isSafeInteger(draw.numero) &&
+          draw.numero > 0 &&
+          typeof draw.nome === 'string' &&
+          draw.nome.trim() &&
+          typeof draw.matricula === 'string' &&
+          ['camara', 'prefeitura'].includes(draw.origem) &&
+          typeof draw.sorteadoEm === 'string' &&
+          Number.isFinite(Date.parse(draw.sorteadoEm)) &&
+          (draw.premioNome === null || typeof draw.premioNome === 'string'),
+      )
+    ) {
+      throw new Error('A API retornou um histórico inválido.')
+    }
+    if (!viewActive || revision !== historyRevision) return
+    winners.value = data.dados.map((draw) => ({
+      id: draw.id,
+      order: draw.numero,
+      name: draw.nome,
+      registration: draw.matricula,
+      institution:
+        draw.origem === 'camara'
+          ? 'Câmara Municipal de Contagem'
+          : 'Prefeitura Municipal de Contagem',
+      prize: draw.premioNome ?? 'Sorteio sem prêmio associado',
+      drawnAt: draw.sorteadoEm,
+    }))
+    historyTotal.value = data.paginacao.total
+  } catch {
+    if (viewActive && revision === historyRevision)
+      historyError.value =
+        'Não foi possível consultar os últimos contemplados. Verifique a API e tente novamente.'
+  } finally {
+    if (viewActive && revision === historyRevision) historyLoading.value = false
+  }
+}
+
+function refreshData(fresh = false) {
+  return Promise.all([refreshIndicators(fresh), refreshHistory()])
+}
+const refreshAfterChange = () => refreshData(true)
+onMounted(() => {
+  window.addEventListener('focus', refreshAfterChange)
+  window.addEventListener('evento-atualizado', refreshAfterChange)
+  refreshData()
+})
+onBeforeUnmount(() => {
+  viewActive = false
+  summaryRevision += 1
+  historyRevision += 1
+  window.removeEventListener('focus', refreshAfterChange)
+  window.removeEventListener('evento-atualizado', refreshAfterChange)
+})
+
+const indicators = computed(() => [
   {
     label: 'Presentes no evento',
-    value: 0,
-    caption: 'Participação confirmada',
+    value: indicatorValue('presencasConfirmadas'),
+    caption:
+      indicatorValue('totalServidores') === '—'
+        ? 'Participação confirmada'
+        : `${indicatorData.value.totalServidores} servidores · ${indicatorData.value.servidoresPendentes} pendentes`,
     icon: 'users',
     color: 'blue',
   },
   {
     label: 'Aptos ao sorteio',
-    value: 0,
+    value: indicatorValue('elegiveis'),
     caption: 'Ainda não contemplados',
     icon: 'check-circle',
     color: 'green',
   },
   {
     label: 'Contemplados',
-    value: 0,
-    caption: 'Aguardando o primeiro sorteio',
+    value: indicatorValue('servidoresContemplados'),
+    caption:
+      indicatorValue('sorteiosRealizados') === '—'
+        ? 'Resultados registrados'
+        : `${indicatorData.value.sorteiosRealizados} sorteios realizados`,
     icon: 'trophy',
     color: 'purple',
   },
-  { label: 'Prêmios livres', value: 0, caption: 'Cadastro opcional', icon: 'gift', color: 'gold' },
-]
+  {
+    label: 'Prêmios livres',
+    value: indicatorValue('premiosDisponiveis'),
+    caption:
+      indicatorValue('premiosCadastrados') === '—'
+        ? 'Cadastro opcional'
+        : `${indicatorData.value.premiosCadastrados} cadastrados · ${indicatorData.value.premiosUtilizados} utilizados`,
+    icon: 'gift',
+    color: 'gold',
+  },
+])
 
 // Ordena uma cópia para manter os destaques e o histórico do mais recente ao mais antigo.
 const orderedWinners = computed(() =>
-  [...winners.value].sort((first, second) => new Date(second.drawnAt) - new Date(first.drawnAt)),
+  [...winners.value].sort((first, second) => second.order - first.order),
 )
 const latestWinners = computed(() => orderedWinners.value.slice(0, 3))
-const winnerTotal = computed(
-  () => `${orderedWinners.value.length} contemplado${orderedWinners.value.length === 1 ? '' : 's'}`,
+const winnerTotal = computed(() =>
+  historyLoading.value || historyError.value
+    ? '—'
+    : `${historyTotal.value} contemplado${historyTotal.value === 1 ? '' : 's'}`,
 )
 
 function formatDate(date) {
@@ -44,6 +162,7 @@ function formatDate(date) {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
   }).format(new Date(date))
 }
 </script>
@@ -142,7 +261,10 @@ function formatDate(date) {
                 <use href="#home-check-circle" />
               </svg>
             </div>
-            <div><strong>0</strong><span>presenças confirmadas</span></div>
+            <div>
+              <strong>{{ indicatorValue('presencasConfirmadas') }}</strong
+              ><span>presenças confirmadas</span>
+            </div>
           </div>
         </div>
       </section>
@@ -161,6 +283,16 @@ function formatDate(date) {
           <p class="home-metric-caption">{{ indicator.caption }}</p>
         </article>
       </section>
+
+      <p v-if="indicatorsLoading" class="home-section-support" role="status">
+        Consultando indicadores…
+      </p>
+      <p v-else-if="indicatorsError" class="home-section-support" role="status">
+        Indicadores indisponíveis.
+        <button class="home-text-link" type="button" @click="refreshIndicators(true)">
+          Tentar novamente
+        </button>
+      </p>
 
       <div class="home-section-line">
         <div>
@@ -192,7 +324,20 @@ function formatDate(date) {
           }"
           aria-live="polite"
         >
-          <template v-if="latestWinners.length">
+          <div v-if="historyLoading" class="home-showcase-empty" role="status">
+            Consultando últimos contemplados…
+          </div>
+          <div v-else-if="historyError" class="home-showcase-empty" role="status">
+            <p>{{ historyError }}</p>
+            <button
+              class="home-button home-button-gold home-button-small"
+              type="button"
+              @click="refreshHistory"
+            >
+              Tentar novamente
+            </button>
+          </div>
+          <template v-else-if="latestWinners.length">
             <article
               v-for="(winner, index) in latestWinners"
               :key="winner.id"
@@ -215,6 +360,7 @@ function formatDate(date) {
               </span>
               <h3 class="home-showcase-name">{{ winner.name }}</h3>
               <span class="home-showcase-registration">Matrícula {{ winner.registration }}</span>
+              <span class="home-showcase-registration">{{ winner.institution }}</span>
               <div class="home-showcase-bottom">
                 <span>
                   <svg class="home-icon home-icon-sm" aria-hidden="true">
@@ -247,21 +393,25 @@ function formatDate(date) {
 
       <div class="home-section-line home-winners-all-heading">
         <div>
-          <h2>Todos os contemplados</h2>
+          <h2>Contemplados recentes</h2>
           <p class="home-section-support">
-            Lista dos vencedores, do mais recente ao primeiro sorteio.
+            Até seis resultados recentes. Consulte o histórico completo em Vencedores.
           </p>
         </div>
         <span class="home-winner-total">{{ winnerTotal }}</span>
       </div>
 
-      <section class="home-winners-panel" aria-label="Lista de todos os contemplados">
+      <section class="home-winners-panel" aria-label="Lista de contemplados recentes">
         <div
           class="home-recent-list"
           :class="{ 'home-recent-list-with-winners': orderedWinners.length > 0 }"
           aria-live="polite"
         >
-          <article v-for="winner in orderedWinners" :key="winner.id" class="home-recent-card">
+          <article
+            v-for="winner in historyLoading || historyError ? [] : orderedWinners"
+            :key="winner.id"
+            class="home-recent-card"
+          >
             <div class="home-recent-card-top">
               <span class="home-recent-sequence">
                 SORTEIO #{{ String(winner.order).padStart(3, '0') }}
@@ -273,6 +423,7 @@ function formatDate(date) {
               <div class="home-recent-body">
                 <strong>{{ winner.name }}</strong>
                 <span>Matrícula {{ winner.registration }}</span>
+                <span>{{ winner.institution }}</span>
               </div>
             </div>
             <div class="home-recent-prize">
@@ -289,7 +440,14 @@ function formatDate(date) {
             </div>
           </article>
 
-          <div v-if="!orderedWinners.length" class="home-recent-empty">
+          <div v-if="historyLoading || historyError" class="home-recent-empty" role="status">
+            {{
+              historyLoading
+                ? 'Consultando histórico…'
+                : 'Histórico indisponível. Tente novamente no destaque acima.'
+            }}
+          </div>
+          <div v-else-if="!orderedWinners.length" class="home-recent-empty">
             <div class="home-empty-icon">
               <svg class="home-icon home-icon-xl" aria-hidden="true">
                 <use href="#home-trophy" />

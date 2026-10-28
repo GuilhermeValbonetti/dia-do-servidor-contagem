@@ -35,6 +35,8 @@ async function requestApi(url, options) {
         : data.erro || 'Não foi possível concluir a operação.',
     )
   }
+  if (options?.method && options.method !== 'GET')
+    globalThis.window?.dispatchEvent?.(new Event('evento-atualizado'))
   return data
 }
 

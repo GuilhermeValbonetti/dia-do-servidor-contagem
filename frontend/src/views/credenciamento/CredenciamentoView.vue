@@ -103,6 +103,8 @@ async function requestApi(url, options) {
     )
   }
 
+  if (options?.method && options.method !== 'GET')
+    globalThis.window?.dispatchEvent?.(new Event('evento-atualizado'))
   return data
 }
 

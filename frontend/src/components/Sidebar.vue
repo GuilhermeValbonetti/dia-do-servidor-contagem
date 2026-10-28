@@ -1,7 +1,54 @@
 <script setup>
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { loadEventIndicators } from '../services/evento'
 import crestUrl from '../assets/images/brasao-contagem.png'
 
 defineOptions({ name: 'AppSidebar' })
+
+const route = useRoute()
+const indicatorData = ref(null)
+const indicatorsLoading = ref(true)
+const indicatorsError = ref('')
+let requestRevision = 0
+let viewActive = true
+
+async function refreshIndicators(fresh = false) {
+  const revision = ++requestRevision
+  indicatorsLoading.value = true
+  indicatorsError.value = ''
+  try {
+    const data = await loadEventIndicators(fresh)
+    if (viewActive && revision === requestRevision) indicatorData.value = data
+  } catch (error) {
+    if (viewActive && revision === requestRevision) indicatorsError.value = error.message
+  } finally {
+    if (viewActive && revision === requestRevision) indicatorsLoading.value = false
+  }
+}
+
+function indicatorValue(field) {
+  return indicatorsLoading.value || indicatorsError.value || !indicatorData.value
+    ? '—'
+    : indicatorData.value[field]
+}
+
+const refreshAfterChange = () => refreshIndicators(true)
+watch(
+  () => route.fullPath,
+  () => refreshIndicators(),
+)
+onMounted(() => {
+  window.addEventListener('focus', refreshAfterChange)
+  window.addEventListener('evento-atualizado', refreshAfterChange)
+  refreshIndicators()
+})
+onBeforeUnmount(() => {
+  viewActive = false
+  requestRevision += 1
+  window.removeEventListener('focus', refreshAfterChange)
+  window.removeEventListener('evento-atualizado', refreshAfterChange)
+})
 
 const navigationItems = [
   { label: 'Visão geral', mobileLabel: 'Início', to: '/', icon: 'home' },
@@ -11,6 +58,7 @@ const navigationItems = [
     to: '/credenciamento',
     icon: 'id',
     countLabel: 'presenças',
+    countField: 'presencasConfirmadas',
   },
   {
     label: 'Realizar sorteio',
@@ -24,6 +72,7 @@ const navigationItems = [
     to: '/vencedores',
     icon: 'trophy',
     countLabel: 'vencedores',
+    countField: 'servidoresContemplados',
   },
   { label: 'Prêmios', mobileLabel: 'Prêmios', to: '/premios', icon: 'gift' },
 ]
@@ -35,7 +84,10 @@ const guideSteps = [
 ]
 
 function accessibleLabel(item) {
-  return item.countLabel ? `${item.label}, 0 ${item.countLabel}` : item.label
+  if (!item.countLabel) return item.label
+  if (indicatorsError.value) return `${item.label}, contagem indisponível`
+  if (indicatorsLoading.value) return `${item.label}, consultando contagem`
+  return `${item.label}, ${indicatorValue(item.countField)} ${item.countLabel}`
 }
 </script>
 
@@ -100,9 +152,23 @@ function accessibleLabel(item) {
           <use :href="`#sidebar-${item.icon}`" />
         </svg>
         <span>{{ item.label }}</span>
-        <span v-if="item.countLabel" class="nav-num" aria-hidden="true">0</span>
+        <span
+          v-if="item.countLabel"
+          class="nav-num"
+          aria-hidden="true"
+          :title="indicatorsError || undefined"
+          >{{ indicatorValue(item.countField) }}</span
+        >
       </RouterLink>
     </nav>
+    <button
+      v-if="indicatorsError"
+      class="sidebar-guide-link"
+      type="button"
+      @click="refreshAfterChange"
+    >
+      Indicadores indisponíveis · Tentar novamente
+    </button>
 
     <section class="sidebar-guide" aria-labelledby="desktop-guide-title">
       <div class="sidebar-guide-heading">
