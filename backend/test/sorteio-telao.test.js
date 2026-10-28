@@ -54,7 +54,11 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
   let frameId = 0
   let now = 1000
   let closes = 0
+  let channel
   class Channel {
+    constructor() {
+      channel = this
+    }
     postMessage(message) {
       messages.push(message)
     }
@@ -148,6 +152,7 @@ function setup(viewName, fetch, storage = new Map(), reducedMotion = true) {
     context,
     listeners,
     frames,
+    receive: (data) => channel.onmessage({ data }),
     advanceTime: (ms) => {
       now += ms
     },
@@ -274,13 +279,13 @@ test('two independent space presses confirm only one operation, including compet
   app.unmount[0]()
 })
 
-test('projection tolerates a temporary silence, recovers a snapshot and closes after persistent silence', async () => {
+test('projection tolerates silent timers, recovers a snapshot and closes only with evidence', async () => {
   const app = setup('telao/TelaoView.vue', async () => json(history([draw])))
   app.mounted[0]()
   await app.view.handleProjectionMessage({
     data: { type: 'state', sessionId: 'test', phase: 'drawing', drawNumber: 1 },
   })
-  app.advanceTime(6000)
+  app.advanceTime(70000)
   app.view.checkOperatorConnection()
   assert.equal(app.view.connectionLost.value, true)
   assert.equal(app.closeCount(), 0)
@@ -289,10 +294,12 @@ test('projection tolerates a temporary silence, recovers a snapshot and closes a
   })
   assert.equal(app.view.connectionLost.value, false)
   assert.equal(app.messages.at(-1).type, 'snapshot-request')
-  app.advanceTime(14999)
+  app.advanceTime(600000)
   app.view.checkOperatorConnection()
   assert.equal(app.closeCount(), 0)
-  app.advanceTime(1)
+  app.context.window.opener = { closed: true }
+  app.view.checkOperatorConnection()
+  app.advanceTime(3000)
   app.view.checkOperatorConnection()
   assert.equal(app.closeCount(), 1)
   assert.equal(app.view.sessionEnded.value, true)
@@ -376,6 +383,120 @@ test('confirmed API operation completes once after operator shutdown during its 
   assert.equal(posts, 1)
   assert.equal(app.view.pendingOperation.value, null)
   assert.ok(!app.messages.some(({ phase }) => phase === 'winner'))
+})
+
+test('idle ceremony and suspended operator timers never close a live operator window', async () => {
+  const app = setup('telao/TelaoView.vue', async () => json(draw))
+  app.context.window.opener = { closed: false }
+  app.mounted[0]()
+  await app.view.handleProjectionMessage({
+    data: { type: 'state', sessionId: 'test', phase: 'winner', draw },
+  })
+  for (let minute = 0; minute < 30; minute += 1) {
+    app.advanceTime(60000)
+    app.view.checkOperatorConnection()
+  }
+  assert.equal(app.closeCount(), 0)
+  assert.equal(app.view.phase.value, 'winner')
+  assert.equal(app.view.connectionLost.value, false)
+  app.context.window.opener.closed = true
+  app.view.checkOperatorConnection()
+  assert.equal(app.closeCount(), 0)
+  app.advanceTime(3000)
+  app.view.checkOperatorConnection()
+  assert.equal(app.closeCount(), 1)
+})
+
+test('winner visibility is acknowledged after entrance and repeated snapshots do not restart it', async () => {
+  const app = setup('telao/TelaoView.vue', async () => json(draw), new Map(), false)
+  const message = { data: { type: 'state', sessionId: 'test', phase: 'winner', draw } }
+  await app.view.handleProjectionMessage(message)
+  assert.ok(!app.messages.some(({ type }) => type === 'winner-visible'))
+  app.fireTimer(800)
+  assert.equal(app.messages.at(-1).type, 'winner-visible')
+  await app.view.handleProjectionMessage({ data: { ...message.data, snapshot: true } })
+  app.fireTimer(800)
+  assert.equal(app.messages.filter(({ type }) => type === 'winner-visible').length, 1)
+})
+
+test('two consecutive human draws prepare automatically ten seconds after revelation without extra POSTs', async () => {
+  let posts = 0
+  const results = []
+  const app = setup('sorteio/SorteioView.vue', async (url, options) => {
+    if (options?.method === 'POST') {
+      posts += 1
+      const result = { ...draw, id: posts, numero: posts }
+      results.unshift(result)
+      return json(result, 201)
+    }
+    return url === '/api/premios'
+      ? json({ dados: [] })
+      : json(history(results, { ...indicators, proximoNumero: posts + 1 }))
+  })
+  await app.mounted[0]()
+  const sessionId = app.messages[0].sessionId
+  app.receive({ type: 'snapshot-request', sessionId })
+  app.context.Swal.fire = (options) =>
+    new Promise((resolve) => {
+      options.didOpen()
+      app.context.Swal.clickConfirm = () => {
+        options.willClose()
+        resolve({ isConfirmed: true })
+      }
+    })
+  const key = { code: 'Space', preventDefault() {}, stopImmediatePropagation() {} }
+  for (let round = 1; round <= 2; round += 1) {
+    app.view.releaseDrawShortcut(key)
+    app.view.handleDrawShortcut(key)
+    app.view.releaseDrawShortcut(key)
+    app.view.handleDrawShortcut(key)
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(posts, round)
+    assert.equal(app.view.projectionPhase.value, 'winner')
+    app.advanceTime(10000)
+    app.fireTimer(10800)
+    assert.equal(app.view.projectionPhase.value, 'winner')
+    app.receive({ type: 'winner-visible', sessionId, drawId: round })
+    app.advanceTime(9999)
+    app.receive({ type: 'prepare-request', sessionId, drawId: round })
+    app.fireTimer(10000)
+    assert.equal(app.view.projectionPhase.value, 'winner')
+    app.advanceTime(1)
+    if (round === 1) app.fireTimer(1)
+    else app.receive({ type: 'prepare-request', sessionId, drawId: round })
+    assert.equal(app.view.projectionPhase.value, 'preparing')
+    assert.equal(posts, round)
+    assert.equal(app.view.latestDraw.value.id, round)
+    const count = app.messages.length
+    app.receive({ type: 'winner-visible', sessionId, drawId: round })
+    app.fireTimer(10000)
+    assert.equal(app.messages.length, count)
+  }
+})
+
+test('manual preparation cancels automation and reload restores only the remaining presentation time', async () => {
+  const storage = new Map()
+  const fetch = async (url) =>
+    url === '/api/premios' ? json({ dados: [] }) : json(history([draw]))
+  const app = setup('sorteio/SorteioView.vue', fetch, storage)
+  await app.view.animateDraw(draw)
+  app.advanceTime(5000)
+  const reopened = setup('sorteio/SorteioView.vue', fetch, storage)
+  reopened.advanceTime(5000)
+  await reopened.view.refreshData(true)
+  assert.equal(reopened.view.projectionPhase.value, 'winner')
+  reopened.advanceTime(5800)
+  reopened.fireTimer(5800)
+  assert.equal(reopened.view.projectionPhase.value, 'preparing')
+  assert.ok(reopened.messages.every(({ phase }) => phase !== 'drawing'))
+  app.view.prepareNextDraw()
+  const count = app.messages.length
+  app.advanceTime(20000)
+  app.fireTimer(10800)
+  assert.equal(app.messages.length, count)
+  const prepared = setup('sorteio/SorteioView.vue', fetch, storage)
+  await prepared.view.refreshData(true)
+  assert.equal(prepared.view.projectionPhase.value, 'preparing')
 })
 
 test('space shortcut requires an eligible prepared round and never retries pending operations', async () => {

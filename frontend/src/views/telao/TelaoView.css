@@ -407,12 +407,11 @@
   top: -28px;
   left: var(--confetti-x);
   width: 8px;
-  height: 13px;
+  height: 12px;
   border-radius: 2px;
   background: var(--confetti-color);
   transform: rotate(var(--confetti-rotation));
-  animation: projection-confetti-fall var(--confetti-duration) cubic-bezier(0.23, 0.6, 0.46, 1)
-    var(--confetti-delay) both;
+  animation: projection-confetti-fall var(--confetti-duration) linear var(--confetti-delay) both;
   will-change: transform, opacity;
 }
 
@@ -453,15 +452,20 @@
 
 @keyframes projection-confetti-fall {
   0% {
-    transform: translate3d(0, -12vh, 0) rotate(var(--confetti-rotation));
+    transform: translate3d(0, -4vh, 0) rotate(var(--confetti-rotation));
     opacity: 0;
   }
-  7%,
-  84% {
+  8%,
+  88% {
     opacity: 1;
   }
+  48% {
+    transform: translate3d(var(--confetti-sway), 49.76vh, 0)
+      rotate(calc(var(--confetti-rotation) + var(--confetti-spin) * 0.48));
+  }
   100% {
-    transform: translate3d(var(--confetti-drift), 112vh, 0) rotate(750deg);
+    transform: translate3d(var(--confetti-drift), 108vh, 0)
+      rotate(calc(var(--confetti-rotation) + var(--confetti-spin)));
     opacity: 0;
   }
 }

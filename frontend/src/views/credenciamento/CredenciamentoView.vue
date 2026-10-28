@@ -30,13 +30,6 @@ const indicatorData = ref({
   servidoresContemplados: 0,
 })
 
-const searchMode = ref('matricula')
-const searchValue = ref('')
-const searchResults = ref([])
-const searchMessage = ref('')
-const searchMessageType = ref('info')
-const isSearching = ref(false)
-const selectedServerId = ref(null)
 const isSaving = ref(false)
 const loading = ref(true)
 const loadError = ref('')
@@ -45,7 +38,7 @@ const indicatorsLoaded = ref(false)
 const directorySearch = ref('')
 const activeFilter = ref('all')
 const currentPage = ref(1)
-const pageSize = 50
+const pageSize = 10
 const totalPages = ref(0)
 const totalRecords = ref(0)
 
@@ -232,54 +225,6 @@ function statusLabel(person) {
   return labels[participantStatus(person)]
 }
 
-function clearSearch() {
-  searchResults.value = []
-  searchMessage.value = ''
-  selectedServerId.value = null
-}
-
-function setSearchMode(mode) {
-  if (mode !== 'matricula') return
-  searchMode.value = mode
-  searchValue.value = ''
-  clearSearch()
-}
-
-async function searchParticipants() {
-  if (isSearching.value) return
-  const searchTerm = searchValue.value.trim()
-  searchResults.value = []
-  selectedServerId.value = null
-
-  if (!searchTerm || !/^\d+$/.test(searchTerm)) {
-    searchMessage.value = 'Informe uma matrícula contendo somente números.'
-    searchMessageType.value = 'warning'
-    return
-  }
-
-  isSearching.value = true
-  try {
-    const data = await requestApi(
-      `/api/servidores?matricula=${encodeURIComponent(searchTerm)}&limit=100`,
-    )
-    searchResults.value = data.dados.map(mapServer)
-    searchMessage.value = searchResults.value.length
-      ? `${searchResults.value.length} servidor${searchResults.value.length === 1 ? '' : 'es'} encontrado${searchResults.value.length === 1 ? '' : 's'}. Confira a instituição e selecione o registro correto.`
-      : 'Nenhum servidor encontrado para esta matrícula.'
-    searchMessageType.value = searchResults.value.length ? 'info' : 'warning'
-  } catch (error) {
-    searchMessage.value = error.message
-    searchMessageType.value = 'warning'
-  } finally {
-    isSearching.value = false
-  }
-}
-
-function selectServer(person) {
-  if (person.presente || person.contemplado || isSaving.value) return
-  selectedServerId.value = person.id
-}
-
 function selectFilter(filter) {
   activeFilter.value = filter
 }
@@ -287,8 +232,9 @@ function selectFilter(filter) {
 async function confirmPresence(person) {
   if (
     isSaving.value ||
-    selectedServerId.value !== person.id ||
-    !searchResults.value.some((result) => result.id === person.id)
+    loading.value ||
+    !!loadError.value ||
+    !participants.value.some((result) => result.id === person.id)
   ) {
     return
   }
@@ -326,8 +272,9 @@ async function confirmPresence(person) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ servidorId: person.id, matricula: person.matricula }),
     })
-    selectedServerId.value = null
-    await Promise.all([refreshData(), searchParticipants()])
+    person.presente = true
+    person.credenciado = true
+    await refreshData()
     await Swal.fire({
       icon: 'success',
       title: 'Presença confirmada',
@@ -344,7 +291,7 @@ async function confirmPresence(person) {
       confirmButtonColor: '#0868af',
     })
     if (error.message.includes('já foi confirmada')) {
-      await Promise.all([searchParticipants(), refreshData()])
+      await refreshData()
     }
   } finally {
     isSaving.value = false
@@ -380,10 +327,7 @@ async function undoPresence(person) {
     if (!result.isConfirmed) return
 
     await requestApi(`/api/credenciamentos/${person.id}`, { method: 'DELETE' })
-    await Promise.all([
-      refreshData(),
-      searchValue.value.trim() ? searchParticipants() : Promise.resolve(),
-    ])
+    await refreshData()
     await Swal.fire({
       icon: 'success',
       title: 'Presença desfeita',
@@ -402,7 +346,6 @@ async function undoPresence(person) {
       confirmButtonColor: '#0868af',
     })
     await refreshData()
-    if (searchValue.value.trim()) await searchParticipants()
   } finally {
     isSaving.value = false
   }
@@ -458,146 +401,173 @@ onMounted(refreshData)
 
     <section class="checkin-layout" aria-label="Credenciamento de servidores">
       <div class="checkin-search-column">
-        <section class="checkin-panel checkin-panel-pad">
-          <h2 class="checkin-panel-title">
-            <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-            Buscar servidor
-          </h2>
-          <p class="checkin-panel-subtitle">
-            Pesquise na base de participantes e confirme a presença de quem chegou.
+        <section class="checkin-panel checkin-directory" aria-labelledby="checkin-directory-title">
+          <header class="checkin-directory-head">
+            <div>
+              <h2 id="checkin-directory-title" class="checkin-panel-title">
+                <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-id" /></svg>
+                Servidores da base
+              </h2>
+              <p>Pesquise por nome ou matrícula e confirme a presença no registro correto.</p>
+            </div>
+          </header>
+
+          <div class="checkin-summary" aria-label="Resumo dos servidores">
+            <article
+              v-for="indicator in indicators"
+              :key="indicator.label"
+              :class="['checkin-summary-item', `checkin-summary-${indicator.tone}`]"
+            >
+              <strong>{{ indicator.value }}</strong>
+              <span>{{ indicator.label }}</span>
+            </article>
+          </div>
+          <p v-if="indicatorsError" class="checkin-feedback checkin-feedback-warning" role="alert">
+            Não foi possível atualizar os indicadores: {{ indicatorsError }}
           </p>
 
-          <div class="checkin-segment" role="group" aria-label="Tipo de documento">
-            <button
-              type="button"
-              :class="{ active: searchMode === 'matricula' }"
-              :aria-pressed="searchMode === 'matricula'"
-              @click="setSearchMode('matricula')"
-            >
-              Matrícula
-            </button>
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              title="A base atual não possui CPF para consulta."
-            >
-              CPF
-            </button>
-          </div>
-
-          <form class="checkin-search-form" @submit.prevent="searchParticipants">
-            <label for="checkin-search-input">
-              {{ searchMode === 'matricula' ? 'Matrícula do servidor' : 'CPF do servidor' }}
-            </label>
-            <div class="checkin-search-row">
-              <input
-                id="checkin-search-input"
-                v-model="searchValue"
-                type="text"
-                inputmode="numeric"
-                autocomplete="off"
-                maxlength="18"
-                placeholder="Ex.: 001234"
-                :disabled="isSearching || isSaving"
-                aria-describedby="checkin-search-help"
-                @input="clearSearch"
-              />
-              <button
-                class="checkin-button checkin-button-primary"
-                type="submit"
-                :disabled="isSearching || isSaving"
+          <div class="checkin-directory-tools">
+            <label class="checkin-directory-search">
+              <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
+              <span class="checkin-sr-only">
+                Buscar na base por nome, matrícula ou instituição</span
               >
-                <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-                {{ isSearching ? 'Consultando…' : 'Consultar' }}
+              <input
+                v-model="directorySearch"
+                type="search"
+                autocomplete="off"
+                placeholder="Buscar na base por nome, matrícula ou instituição..."
+                maxlength="200"
+              />
+            </label>
+            <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
+              <button
+                v-for="filter in filters"
+                :key="filter.value"
+                :class="{ active: activeFilter === filter.value }"
+                type="button"
+                :aria-pressed="activeFilter === filter.value"
+                @click="selectFilter(filter.value)"
+              >
+                {{ filter.label }}
               </button>
             </div>
-            <p id="checkin-search-help" class="checkin-field-note">
-              A matrícula é consultada como texto, inclusive zeros à esquerda. A busca por CPF não
-              está disponível.
-            </p>
-          </form>
+          </div>
 
-          <p
-            v-if="searchMessage"
-            :class="['checkin-search-message', `checkin-search-message-${searchMessageType}`]"
-            role="status"
-            aria-live="polite"
-          >
-            {{ searchMessage }}
-          </p>
+          <div class="checkin-list-heading" aria-hidden="true">
+            <span>Servidor / instituição</span>
+            <span>Matrícula</span>
+            <span>Situação</span>
+            <span>Ação</span>
+          </div>
 
-          <div v-if="searchResults.length" class="checkin-results">
-            <h3>Resultados da consulta</h3>
-            <article
-              v-for="person in searchResults"
-              :key="person.id"
-              class="checkin-person-card"
-              :class="{ 'checkin-person-card-selected': selectedServerId === person.id }"
+          <div v-if="loading" class="checkin-directory-empty" role="status" aria-live="polite">
+            <strong>Carregando servidores…</strong>
+          </div>
+          <div v-else-if="loadError" class="checkin-directory-empty" role="alert">
+            <strong>Não foi possível carregar os servidores</strong>
+            <span>{{ loadError }}</span>
+            <button
+              class="checkin-button checkin-button-secondary checkin-button-small"
+              type="button"
+              @click="refreshData()"
             >
-              <div class="checkin-person-main">
-                <span class="checkin-avatar" aria-hidden="true">
-                  {{
-                    person.nome
-                      .split(' ')
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join('')
-                      .toUpperCase()
-                  }}
-                </span>
-                <div class="checkin-person-identity">
-                  <h4>{{ person.nome }}</h4>
-                  <p>{{ institutionName(person.origem) }}</p>
-                  <p v-if="person.localTrabalhoDescricao" class="checkin-workplace">
-                    Local de trabalho: {{ person.localTrabalhoDescricao }}
-                  </p>
-                </div>
-              </div>
-              <div class="checkin-person-details">
+              Tentar novamente
+            </button>
+          </div>
+          <div v-else-if="participants.length" class="checkin-participant-list" role="list">
+            <article
+              v-for="person in participants"
+              :key="person.id"
+              class="checkin-participant-row"
+              role="listitem"
+            >
+              <div class="checkin-participant-identity">
                 <div>
-                  <span>Matrícula</span><strong>{{ person.matricula }}</strong>
+                  <strong>{{ person.nome }}</strong>
+                  <span>{{ institutionName(person.origem) }}</span>
+                  <span v-if="person.localTrabalhoDescricao" class="checkin-workplace"
+                    >Local de trabalho: {{ person.localTrabalhoDescricao }}</span
+                  >
                 </div>
-                <span :class="['checkin-status', `checkin-status-${participantStatus(person)}`]">
-                  <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
-                    <use
-                      :href="`#checkin-${person.contemplado ? 'trophy' : person.presente ? 'check-circle' : 'clock'}`"
-                    />
-                  </svg>
-                  {{
-                    person.contemplado
-                      ? 'Vencedor · presença mantida'
-                      : person.presente
-                        ? 'Presença confirmada'
-                        : 'Aguardando presença'
-                  }}
-                </span>
               </div>
-              <button
-                v-if="!person.presente && !person.contemplado && selectedServerId !== person.id"
-                class="checkin-button checkin-button-primary checkin-confirm-button"
-                type="button"
-                :disabled="isSaving"
-                @click="selectServer(person)"
-              >
-                Selecionar servidor
-              </button>
-              <div v-else-if="selectedServerId === person.id" class="checkin-selected-actions">
-                <span role="status">Servidor selecionado</span>
+              <span class="checkin-participant-number">{{ person.matricula }}</span>
+              <span :class="['checkin-status', `checkin-status-${participantStatus(person)}`]">
+                <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
+                  <use
+                    :href="`#checkin-${person.contemplado ? 'trophy' : person.presente ? 'check-circle' : 'clock'}`"
+                  />
+                </svg>
+                {{ statusLabel(person) }}
+              </span>
+              <div class="checkin-participant-action">
                 <button
-                  class="checkin-button checkin-button-primary checkin-confirm-button"
+                  v-if="person.presente && !person.contemplado"
+                  class="checkin-button checkin-button-danger checkin-button-small"
                   type="button"
+                  :aria-label="`Desfazer presença de ${person.nome}`"
+                  :disabled="isSaving"
+                  @click="undoPresence(person)"
+                >
+                  Desfazer presença
+                </button>
+                <span v-else-if="person.contemplado" class="checkin-action-note">
+                  <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
+                    <use href="#checkin-trophy" />
+                  </svg>
+                  Presença mantida
+                </span>
+                <button
+                  v-else
+                  class="checkin-button checkin-button-primary checkin-button-small"
+                  type="button"
+                  :aria-label="`Confirmar presença de ${person.nome}, matrícula ${person.matricula}, ${institutionName(person.origem)}`"
                   :disabled="isSaving"
                   @click="confirmPresence(person)"
                 >
-                  <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-check" /></svg>
-                  {{ isSaving ? 'Aguarde…' : 'Confirmar presença' }}
+                  Confirmar presença
                 </button>
               </div>
             </article>
           </div>
-        </section>
+          <div v-else class="checkin-directory-empty" role="status">
+            <strong>Nenhum servidor encontrado</strong>
+            <span>
+              {{
+                directorySearch || activeFilter !== 'all'
+                  ? 'Tente outro termo ou ajuste o filtro.'
+                  : 'Não há servidores nesta página.'
+              }}
+            </span>
+          </div>
 
+          <footer class="checkin-directory-footer">
+            <span role="status" aria-live="polite">{{ directoryResultsLabel }}</span>
+            <nav
+              v-if="totalPages > 1"
+              class="checkin-pagination"
+              aria-label="Paginação dos servidores"
+            >
+              <button
+                class="checkin-button checkin-button-secondary checkin-button-small"
+                type="button"
+                :disabled="loading || currentPage <= 1"
+                @click="changePage(currentPage - 1)"
+              >
+                Anterior
+              </button>
+              <span>Página {{ currentPage }} de {{ totalPages }}</span>
+              <button
+                class="checkin-button checkin-button-secondary checkin-button-small"
+                type="button"
+                :disabled="loading || currentPage >= totalPages"
+                @click="changePage(currentPage + 1)"
+              >
+                Próxima
+              </button>
+            </nav>
+          </footer>
+        </section>
         <aside class="checkin-help-strip">
           <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-info" /></svg>
           <p>
@@ -609,10 +579,10 @@ onMounted(refreshData)
       </div>
 
       <div class="checkin-history-column">
-        <section class="checkin-panel">
+        <section class="checkin-recent" aria-labelledby="checkin-recent-title">
           <header class="checkin-panel-head">
             <div>
-              <h2 class="checkin-panel-title">
+              <h2 id="checkin-recent-title" class="checkin-panel-title">
                 <svg class="checkin-icon" aria-hidden="true">
                   <use href="#checkin-check-circle" />
                 </svg>
@@ -678,171 +648,14 @@ onMounted(refreshData)
           <div v-else class="checkin-empty">Nenhuma presença confirmada.</div>
         </section>
 
-        <aside class="checkin-panel checkin-tip">
+        <aside class="checkin-tip">
           <h2 class="checkin-panel-title">Dica de utilização</h2>
           <p class="checkin-panel-subtitle">
-            Pesquise a matrícula e confira o nome e a instituição. Se houver mais de um resultado,
-            selecione o registro correto antes de confirmar.
+            Pesquise pelo nome ou matrícula e confira o nome, a matrícula e a instituição. Se houver
+            mais de um resultado, selecione o registro correto antes de confirmar.
           </p>
         </aside>
       </div>
-    </section>
-
-    <section class="checkin-panel checkin-directory" aria-labelledby="checkin-directory-title">
-      <header class="checkin-directory-head">
-        <div>
-          <h2 id="checkin-directory-title" class="checkin-panel-title">
-            <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-id" /></svg>
-            Servidores da base
-          </h2>
-          <p>
-            Consulte os servidores da base e acompanhe suas situações. Para confirmar presença,
-            pesquise a matrícula acima; pela lista, é possível apenas desfazer uma presença.
-          </p>
-        </div>
-        <span class="checkin-source">Base oficial</span>
-      </header>
-
-      <div class="checkin-summary" aria-label="Resumo dos servidores">
-        <article
-          v-for="indicator in indicators"
-          :key="indicator.label"
-          :class="['checkin-summary-item', `checkin-summary-${indicator.tone}`]"
-        >
-          <strong>{{ indicator.value }}</strong>
-          <span>{{ indicator.label }}</span>
-        </article>
-      </div>
-      <p v-if="indicatorsError" class="checkin-feedback checkin-feedback-warning" role="alert">
-        Não foi possível atualizar os indicadores: {{ indicatorsError }}
-      </p>
-
-      <div class="checkin-directory-tools">
-        <label class="checkin-directory-search">
-          <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-          <span class="checkin-sr-only"> Buscar na base por nome, matrícula ou instituição</span>
-          <input
-            v-model="directorySearch"
-            type="search"
-            autocomplete="off"
-            placeholder="Buscar na base por nome, matrícula ou instituição..."
-            maxlength="200"
-          />
-        </label>
-        <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
-          <button
-            v-for="filter in filters"
-            :key="filter.value"
-            :class="{ active: activeFilter === filter.value }"
-            type="button"
-            :aria-pressed="activeFilter === filter.value"
-            @click="selectFilter(filter.value)"
-          >
-            {{ filter.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="checkin-list-heading" aria-hidden="true">
-        <span>Servidor / instituição</span>
-        <span>Matrícula</span>
-        <span>Situação</span>
-        <span>Ação</span>
-      </div>
-
-      <div v-if="loading" class="checkin-directory-empty" role="status" aria-live="polite">
-        <strong>Carregando servidores…</strong>
-      </div>
-      <div v-else-if="loadError" class="checkin-directory-empty" role="alert">
-        <strong>Não foi possível carregar os servidores</strong>
-        <span>{{ loadError }}</span>
-        <button
-          class="checkin-button checkin-button-secondary checkin-button-small"
-          type="button"
-          @click="refreshData()"
-        >
-          Tentar novamente
-        </button>
-      </div>
-      <div v-else-if="participants.length" class="checkin-participant-list" role="list">
-        <article
-          v-for="person in participants"
-          :key="person.id"
-          class="checkin-participant-row"
-          role="listitem"
-        >
-          <div class="checkin-participant-identity">
-            <div>
-              <strong>{{ person.nome }}</strong>
-              <span>{{ institutionName(person.origem) }}</span>
-              <span v-if="person.localTrabalhoDescricao" class="checkin-workplace"
-                >Local de trabalho: {{ person.localTrabalhoDescricao }}</span
-              >
-            </div>
-          </div>
-          <span class="checkin-participant-number">{{ person.matricula }}</span>
-          <span :class="['checkin-status', `checkin-status-${participantStatus(person)}`]">
-            <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
-              <use
-                :href="`#checkin-${person.contemplado ? 'trophy' : person.presente ? 'check-circle' : 'clock'}`"
-              />
-            </svg>
-            {{ statusLabel(person) }}
-          </span>
-          <div class="checkin-participant-action">
-            <button
-              v-if="person.presente && !person.contemplado"
-              class="checkin-button checkin-button-danger checkin-button-small"
-              type="button"
-              :aria-label="`Desfazer presença de ${person.nome}`"
-              :disabled="isSaving"
-              @click="undoPresence(person)"
-            >
-              Desfazer presença
-            </button>
-            <span v-else-if="person.contemplado" class="checkin-action-note">
-              <svg class="checkin-icon checkin-icon-small" aria-hidden="true">
-                <use href="#checkin-trophy" />
-              </svg>
-              Presença mantida
-            </span>
-            <span v-else class="checkin-action-note">Confirmar pela busca</span>
-          </div>
-        </article>
-      </div>
-      <div v-else class="checkin-directory-empty" role="status">
-        <strong>Nenhum servidor encontrado</strong>
-        <span>
-          {{
-            directorySearch || activeFilter !== 'all'
-              ? 'Tente outro termo ou ajuste o filtro.'
-              : 'Não há servidores nesta página.'
-          }}
-        </span>
-      </div>
-
-      <footer class="checkin-directory-footer">
-        <span role="status" aria-live="polite">{{ directoryResultsLabel }}</span>
-        <nav v-if="totalPages > 1" class="checkin-pagination" aria-label="Paginação dos servidores">
-          <button
-            class="checkin-button checkin-button-secondary checkin-button-small"
-            type="button"
-            :disabled="loading || currentPage <= 1"
-            @click="changePage(currentPage - 1)"
-          >
-            Anterior
-          </button>
-          <span>Página {{ currentPage }} de {{ totalPages }}</span>
-          <button
-            class="checkin-button checkin-button-secondary checkin-button-small"
-            type="button"
-            :disabled="loading || currentPage >= totalPages"
-            @click="changePage(currentPage + 1)"
-          >
-            Próxima
-          </button>
-        </nav>
-      </footer>
     </section>
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { requestDrawApi } from '../../services/sorteios'
 import brasao from '../../assets/images/brasao-contagem.png'
@@ -30,22 +30,32 @@ let messageRevision = 0
 let viewActive = true
 let digitsFrame = null
 let awaitingApiSync = false
+let winnerVisibleTimeout
+let preparationRequestTimeout
+let acknowledgedWinnerId = null
 const verifiedDraws = new Map()
 
-const connectionTimeout = 6000
-const disconnectTimeout = 5000
+const connectionTimeout = 70000
 let disconnectDeadline = null
 const connectionCheckFrequency = 1000
 
-const confettiPieces = Array.from({ length: 180 }, (_, index) => ({
-  id: index,
-  x: `${(index * 47) % 100}%`,
-  delay: `${(index % 8) * 0.06}s`,
-  duration: `${2.5 + (index % 6) * 0.2}s`,
-  color: ['#f4c84c', '#6ed4a2', '#bca0f5', '#f38e9b'][index % 4],
-  rotation: `${index * 19}deg`,
-  drift: `${((index % 9) - 4) * 12}px`,
-}))
+const confettiPieces = ref([])
+
+function createConfetti() {
+  // Amostras independentes evitam correlação entre posição, início e velocidade.
+  // Aleatoriedade apenas visual; não participa da escolha dos vencedores.
+  return Array.from({ length: 132 }, (_, id) => ({
+    id,
+    x: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 3900}ms`,
+    duration: `${2880 + Math.random() * 720}ms`,
+    color: ['#f4c84c', '#6ed4a2', '#bca0f5', '#f38e9b'][Math.floor(Math.random() * 4)],
+    rotation: `${Math.random() * 360}deg`,
+    spin: `${(Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 240)}deg`,
+    sway: `${(Math.random() - 0.5) * 56}px`,
+    drift: `${(Math.random() - 0.5) * 140}px`,
+  }))
+}
 
 function isValidDraw(draw) {
   return (
@@ -61,12 +71,17 @@ function isValidDraw(draw) {
 function celebrate() {
   if (reducedMotion) return
 
+  confettiPieces.value = createConfetti()
+  const confettiLifetime =
+    Math.max(
+      ...confettiPieces.value.map((piece) => parseFloat(piece.delay) + parseFloat(piece.duration)),
+    ) + 150
   confettiRound.value += 1
   showConfetti.value = true
   window.clearTimeout(confettiTimeout)
   confettiTimeout = window.setTimeout(() => {
     showConfetti.value = false
-  }, 5200)
+  }, confettiLifetime)
 }
 
 function stopDigits() {
@@ -138,6 +153,8 @@ async function handleProjectionMessage({ data }) {
     return
   }
   const revision = ++messageRevision
+  window.clearTimeout(winnerVisibleTimeout)
+  if (data.phase !== 'winner') window.clearTimeout(preparationRequestTimeout)
   const candidate =
     data.phase === 'winner' ? data.draw : data.phase === 'preparing' ? data.lastDraw : null
   let confirmedDraw = null
@@ -179,6 +196,32 @@ async function handleProjectionMessage({ data }) {
     lastWinner.value = confirmedDraw
     drawNumber.value = confirmedDraw.numero
     ballNumber.value = confirmedDraw.matricula
+    if (acknowledgedWinnerId !== confirmedDraw.id) {
+      const id = confirmedDraw.id
+      await nextTick()
+      winnerVisibleTimeout = window.setTimeout(
+        () => {
+          if (!viewActive || phase.value !== 'winner' || winner.value?.id !== id) return
+          acknowledgedWinnerId = id
+          projectionChannel?.postMessage({
+            type: 'winner-visible',
+            sessionId: projectionSessionId,
+            drawId: id,
+          })
+          // O Telão pede a transição caso os timers do operador estejam limitados.
+          preparationRequestTimeout = window.setTimeout(() => {
+            if (viewActive && phase.value === 'winner' && winner.value?.id === id) {
+              projectionChannel?.postMessage({
+                type: 'prepare-request',
+                sessionId: projectionSessionId,
+                drawId: id,
+              })
+            }
+          }, 10000)
+        },
+        suppressEntrance.value || reducedMotion ? 0 : 800,
+      )
+    }
     if (!data.snapshot && (previousPhase !== 'winner' || previousDrawNumber !== drawNumber.value)) {
       celebrate()
     }
@@ -211,14 +254,16 @@ function endOperatorSession() {
 
 function checkOperatorConnection() {
   if (sessionEnded.value) return
+  // Uma janela viva pode ter seus timers suspensos. Silêncio não prova encerramento.
+  if (window.opener?.closed && disconnectDeadline === null) {
+    markConnectionLost()
+    disconnectDeadline = Date.now() + 3000
+  }
   const silence = Date.now() - lastOperatorMessageAt
-  if (
-    (disconnectDeadline !== null && Date.now() >= disconnectDeadline) ||
-    silence >= disconnectTimeout
-  ) {
+  if (disconnectDeadline !== null && Date.now() >= disconnectDeadline) {
     endOperatorSession()
   } else if (silence >= connectionTimeout) {
-    markConnectionLost()
+    if (!window.opener || window.opener.closed) markConnectionLost()
     requestSnapshot()
   }
 }
@@ -232,6 +277,8 @@ function markConnectionLost() {
   winner.value = null
   ballNumber.value = '?'
   window.clearTimeout(confettiTimeout)
+  window.clearTimeout(winnerVisibleTimeout)
+  window.clearTimeout(preparationRequestTimeout)
   showConfetti.value = false
   recoverLastDraw()
 }
@@ -298,6 +345,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(preparationRequestTimeout)
+  window.clearTimeout(winnerVisibleTimeout)
   viewActive = false
   stopDigits()
   messageRevision += 1
@@ -486,6 +535,8 @@ onBeforeUnmount(() => {
           '--confetti-color': piece.color,
           '--confetti-rotation': piece.rotation,
           '--confetti-drift': piece.drift,
+          '--confetti-sway': piece.sway,
+          '--confetti-spin': piece.spin,
         }"
       ></span>
     </div>

@@ -23,6 +23,16 @@ const projectionChannel = projectionSupported ? new BroadcastChannel('dia-do-ser
 let projectionChannelActive = true
 let projectionWindow = null
 let projectionHeartbeatInterval
+let projectionClientConnected = false
+
+function handleOperatorPageHide(event) {
+  if (!event?.persisted) announceProjectionDisconnect()
+}
+
+function resumeProjection() {
+  sendProjectionHeartbeat()
+  sendProjectionState(true)
+}
 
 function sendProjectionHeartbeat() {
   if (!projectionChannel || !projectionChannelActive) return
@@ -79,6 +89,36 @@ let celebrationTimeout
 let animationFrame = null
 let animationDeadline
 let finishAnimation = null
+let preparationTimeout
+let preparationDeadline = null
+let acknowledgedWinnerId = null
+const preparationStorageKey = 'dia-do-servidor-preparacao'
+
+function schedulePreparation(delay) {
+  window.clearTimeout(preparationTimeout)
+  preparationDeadline = Date.now() + delay
+  try {
+    localStorage.setItem(
+      preparationStorageKey,
+      JSON.stringify({ drawId: latestDraw.value.id, deadline: preparationDeadline }),
+    )
+  } catch {
+    /* A apresentação continua mesmo sem armazenamento disponível. */
+  }
+  preparationTimeout = window.setTimeout(completeAutomaticPreparation, delay)
+}
+
+function completeAutomaticPreparation() {
+  if (!viewActive || projectionPhase.value !== 'winner' || preparationDeadline === null) return
+  if (Date.now() < preparationDeadline || confirming.value || drawing.value) {
+    preparationTimeout = window.setTimeout(
+      completeAutomaticPreparation,
+      Math.max(1, preparationDeadline - Date.now(), confirming.value || drawing.value ? 250 : 0),
+    )
+    return
+  }
+  prepareNextDraw()
+}
 
 const canUseDrawShortcut = computed(
   () =>
@@ -189,8 +229,27 @@ function openProjection() {
 
 if (projectionChannel) {
   projectionChannel.onmessage = ({ data }) => {
+    if (data?.sessionId !== projectionSessionId) return
     if (data?.type === 'snapshot-request' && data.sessionId === projectionSessionId) {
+      projectionClientConnected = true
       sendProjectionState(true)
+    }
+    if (
+      data?.type === 'winner-visible' &&
+      projectionPhase.value === 'winner' &&
+      data.drawId === latestDraw.value?.id &&
+      acknowledgedWinnerId !== data.drawId
+    ) {
+      acknowledgedWinnerId = data.drawId
+      schedulePreparation(10000)
+    }
+    if (
+      data?.type === 'prepare-request' &&
+      data.drawId === latestDraw.value?.id &&
+      preparationDeadline !== null &&
+      Date.now() >= preparationDeadline
+    ) {
+      completeAutomaticPreparation()
     }
   }
 }
@@ -270,11 +329,26 @@ function clearCelebration() {
 }
 
 function prepareNextDraw() {
-  if (drawing.value || confirming.value || !latestDraw.value || !eligibleCount.value) {
+  if (
+    drawing.value ||
+    confirming.value ||
+    !latestDraw.value ||
+    projectionPhase.value !== 'winner'
+  ) {
     return
   }
 
   projectionPhase.value = 'preparing'
+  window.clearTimeout(preparationTimeout)
+  preparationDeadline = null
+  try {
+    localStorage.setItem(
+      preparationStorageKey,
+      JSON.stringify({ drawId: latestDraw.value.id, deadline: 0 }),
+    )
+  } catch {
+    /* Não interfere no histórico nem na API. */
+  }
   sendProjectionState()
 }
 
@@ -308,6 +382,23 @@ async function refreshData(recover = false) {
       }
       projectionPhase.value = latestDraw.value ? 'winner' : 'ready'
       ballNumber.value = latestDraw.value?.matricula ?? '?'
+      if (latestDraw.value) {
+        let saved
+        try {
+          saved = JSON.parse(localStorage.getItem(preparationStorageKey))
+        } catch {
+          /* Sem prazo salvo, apenas prepara o resultado recuperado. */
+        }
+        const remaining = saved?.drawId === latestDraw.value.id ? saved.deadline - Date.now() : 0
+        if (remaining > 0) {
+          acknowledgedWinnerId = latestDraw.value.id
+          schedulePreparation(remaining)
+        } else {
+          projectionPhase.value = 'preparing'
+          window.clearTimeout(preparationTimeout)
+          preparationDeadline = null
+        }
+      }
       sendProjectionState(true)
     }
   } catch (error) {
@@ -442,6 +533,15 @@ async function animateDraw(draw) {
   drawing.value = false
   projectionPhase.value = 'winner'
   activeDrawNumber = null
+  acknowledgedWinnerId = null
+  // Sem Telão, o operador também aguarda a revelação e os dez segundos.
+  schedulePreparation(10800)
+  if (
+    (projectionClientConnected && !projectionWindow?.closed) ||
+    (projectionWindow && !projectionWindow.closed)
+  ) {
+    window.clearTimeout(preparationTimeout)
+  }
 
   sendProjectionState()
 
@@ -459,7 +559,9 @@ onBeforeUnmount(() => {
   viewActive = false
   window.removeEventListener('keydown', handleDrawShortcut, true)
   window.removeEventListener('keyup', releaseDrawShortcut, true)
-  window.removeEventListener('pagehide', announceProjectionDisconnect)
+  window.removeEventListener('pagehide', handleOperatorPageHide)
+  window.removeEventListener('pageshow', resumeProjection)
+  window.clearTimeout(preparationTimeout)
   if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
   finishAnimation?.()
   finishAnimation = null
@@ -474,12 +576,14 @@ onBeforeUnmount(() => {
 onMounted(async () => {
   window.addEventListener('keydown', handleDrawShortcut, true)
   window.addEventListener('keyup', releaseDrawShortcut, true)
-  window.addEventListener('pagehide', announceProjectionDisconnect)
+  window.addEventListener('pagehide', handleOperatorPageHide)
+  window.addEventListener('pageshow', resumeProjection)
+  sendProjectionHeartbeat()
+  projectionHeartbeatInterval = window.setInterval(sendProjectionHeartbeat, 2000)
   await refreshData(true)
   if (!viewActive) return
   sendProjectionState(true)
   sendProjectionHeartbeat()
-  projectionHeartbeatInterval = window.setInterval(sendProjectionHeartbeat, 2000)
 })
 </script>
 

@@ -414,26 +414,26 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 4px 7px;
   border-radius: 99px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.35;
 }
 
 .checkin-status-pending {
-  background: #fff6df;
-  color: #8b681b;
+  background: #f5f2eb;
+  color: #705b2b;
 }
 
 .checkin-status-confirmed {
-  background: #e9f8ef;
-  color: #226f4a;
+  background: #edf3ef;
+  color: #315f49;
 }
 
 .checkin-status-winner {
-  background: #f4eaf7;
-  color: #713175;
+  background: #f1eef4;
+  color: #61506e;
 }
 
 .checkin-confirm-button {
@@ -472,32 +472,49 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 19px 21px;
+  padding: 17px 20px;
   border-bottom: 1px solid #edf1f6;
+}
+
+.checkin-recent {
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.checkin-recent .checkin-panel-head {
+  align-items: flex-start;
+  padding: 14px 0;
+  border-bottom-color: #dfe6ed;
+}
+
+.checkin-recent .checkin-count {
+  padding: 3px 0;
+  background: transparent;
+  font-weight: 600;
 }
 
 .checkin-count {
   flex: none;
   padding: 7px 10px;
   border-radius: 99px;
-  background: #e9f8ef;
-  color: #226f4a;
+  background: #f2f5f8;
+  color: #4c6278;
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .checkin-confirmation-list {
-  padding: 8px 18px 12px;
+  padding: 0;
 }
 
 .checkin-confirmation-item {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 10px;
-  padding: 12px 1px;
-  border-bottom: 1px solid #edf1f5;
+  gap: 9px;
+  padding: 10px 1px;
+  border-bottom: 1px solid #e4eaf0;
 }
 
 .checkin-confirmation-item:last-child {
@@ -505,9 +522,11 @@
 }
 
 .checkin-confirmation-item .checkin-avatar {
-  width: 39px;
-  height: 39px;
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eaf0f5;
+  color: #50677c;
   font-size: 12px;
 }
 
@@ -528,8 +547,8 @@
 }
 
 .checkin-confirmation-person small {
-  margin-top: 4px;
-  color: #6b7f92;
+  margin-top: 3px;
+  color: #586d81;
   font-size: 10px;
   line-height: 1.4;
 }
@@ -539,12 +558,10 @@
   flex: none;
   align-items: center;
   gap: 5px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  background: #e9f6ef;
-  color: #246c50;
+  padding: 4px 0;
+  color: #56657a;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .checkin-empty {
@@ -556,7 +573,8 @@
 
 .checkin-tip {
   margin-top: 17px;
-  padding: 19px;
+  padding: 16px 4px 0;
+  border-top: 1px solid #dfe6ed;
 }
 
 .checkin-tip .checkin-panel-subtitle strong {
@@ -564,7 +582,7 @@
 }
 
 .checkin-directory {
-  margin-top: 19px;
+  margin-top: 0;
 }
 
 .checkin-directory-head {
@@ -601,16 +619,22 @@
 .checkin-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0;
   padding: 20px 23px 0;
 }
 
 .checkin-summary-item {
   min-width: 0;
-  padding: 13px 14px;
-  border: 1px solid #e1eaf2;
-  border-radius: 14px;
-  background: #f9fbfe;
+  padding: 12px;
+  background: #f7f9fb;
+}
+
+.checkin-summary-item:nth-child(even) {
+  border-left: 1px solid #e5ebf0;
+}
+
+.checkin-summary-item:nth-child(n + 3) {
+  border-top: 1px solid #e5ebf0;
 }
 
 .checkin-summary-item strong,
@@ -620,8 +644,8 @@
 
 .checkin-summary-item strong {
   color: #163955;
-  font-size: 24px;
-  font-weight: 850;
+  font-size: 22px;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.045em;
   line-height: 1.15;
@@ -632,33 +656,6 @@
   color: #60738a;
   font-size: 11px;
   font-weight: 700;
-}
-
-.checkin-summary-pending {
-  border-color: #faedd3;
-  background: #fffaf0;
-}
-
-.checkin-summary-pending strong {
-  color: #997014;
-}
-
-.checkin-summary-present {
-  border-color: #d8f0e3;
-  background: #effaf4;
-}
-
-.checkin-summary-present strong {
-  color: #0e7b53;
-}
-
-.checkin-summary-winners {
-  border-color: #eddef3;
-  background: #faf4fc;
-}
-
-.checkin-summary-winners strong {
-  color: #713175;
 }
 
 .checkin-directory-tools {
@@ -746,8 +743,8 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 11px;
-  padding: 16px 22px;
+  gap: 9px;
+  padding: 13px 22px;
   border-bottom: 1px solid #edf1f5;
   background: #fff;
   transition: background 0.15s;
@@ -809,6 +806,12 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+}
+
+.checkin-participant-action .checkin-button-primary {
+  min-height: 34px;
+  padding: 7px 10px;
+  box-shadow: none;
 }
 
 .checkin-action-note {
@@ -899,6 +902,14 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .checkin-summary-item:nth-child(n + 2) {
+    border-left: 1px solid #e5ebf0;
+  }
+
+  .checkin-summary-item:nth-child(n + 3) {
+    border-top: 0;
+  }
+
   .checkin-list-heading,
   .checkin-participant-row {
     display: grid;
@@ -934,7 +945,7 @@
   }
 
   .checkin-layout {
-    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
     align-items: start;
   }
 }
@@ -947,7 +958,8 @@
 
 @media (max-width: 639px) {
   .checkin-demo-tag {
-    display: none;
+    max-width: 100%;
+    white-space: normal;
   }
 
   .checkin-directory-head,
@@ -961,8 +973,8 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px;
-    row-gap: 10px;
-    padding: 16px;
+    row-gap: 8px;
+    padding: 13px 16px;
   }
 
   .checkin-participant-identity {
@@ -984,6 +996,7 @@
 
   .checkin-participant-action .checkin-button {
     width: 100%;
+    min-height: 44px;
   }
 
   .checkin-directory-footer {
