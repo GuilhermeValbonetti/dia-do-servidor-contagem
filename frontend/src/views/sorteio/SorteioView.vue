@@ -1,12 +1,19 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
+import 'sweetalert2/dist/sweetalert2.min.css'
+import {
+  requestDrawApi,
+  readPendingDraw,
+  clearPendingDraw,
+  pendingDrawKey,
+} from '../../services/sorteios'
 import { RouterLink, useRouter } from 'vue-router'
 import './SorteioView.css'
 
 const router = useRouter()
 const projectionSupported = typeof BroadcastChannel !== 'undefined'
-const projectionSessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const projectionSessionId = crypto.randomUUID()
 const projectionUrl = router.resolve({
   name: 'telao',
   query: { session: projectionSessionId },
@@ -33,63 +40,18 @@ function announceProjectionDisconnect() {
   })
 }
 
-// Esta lista é independente do credenciamento até a futura integração com o back-end.
-const participants = ref([
-  {
-    id: 1,
-    nome: 'Ana Beatriz Nunes',
-    matricula: '000123',
-    origem: 'prefeitura',
-    presente: true,
-    contemplado: false,
-  },
-  {
-    id: 2,
-    nome: 'Bruno Lopes',
-    matricula: '000123',
-    origem: 'camara',
-    presente: true,
-    contemplado: false,
-  },
-  {
-    id: 3,
-    nome: 'Carolina Duarte',
-    matricula: '000124',
-    origem: 'prefeitura',
-    presente: true,
-    contemplado: false,
-  },
-  {
-    id: 4,
-    nome: 'Diego Martins',
-    matricula: '000125',
-    origem: 'camara',
-    presente: true,
-    contemplado: false,
-  },
-  {
-    id: 5,
-    nome: 'Elisa Costa',
-    matricula: '000126',
-    origem: 'prefeitura',
-    presente: false,
-    contemplado: false,
-  },
-  {
-    id: 6,
-    nome: 'Felipe Souza',
-    matricula: '000127',
-    origem: 'camara',
-    presente: true,
-    contemplado: false,
-  },
-])
-
-const prizes = [
-  { id: 'gift-card', nome: 'Vale-presente de R$ 200' },
-  { id: 'coffee-maker', nome: 'Cafeteira elétrica' },
-  { id: 'headphones', nome: 'Fone de ouvido' },
-]
+const prizes = ref([])
+const indicatorData = ref({
+  presencasConfirmadas: 0,
+  servidoresContemplados: 0,
+  elegiveis: 0,
+  proximoNumero: 1,
+})
+const loading = ref(true)
+const loadError = ref('')
+const pendingOperation = ref(null)
+let viewActive = true
+let activeDrawNumber = null
 const draws = ref([])
 const selectedPrizeId = ref('')
 const drawing = ref(false)
@@ -112,6 +74,8 @@ function sendProjectionState(snapshot = false) {
   const draw = latestDraw.value
   const projectionDraw = draw
     ? {
+        id: draw.id,
+        sorteadoEm: draw.sorteadoEm,
         numero: draw.numero,
         participanteId: draw.participanteId,
         nome: draw.nome,
@@ -128,7 +92,7 @@ function sendProjectionState(snapshot = false) {
     snapshot,
     drawNumber:
       phase === 'drawing' || phase === 'preparing'
-        ? nextDrawNumber.value
+        ? (activeDrawNumber ?? nextDrawNumber.value)
         : (latestDraw.value?.numero ?? nextDrawNumber.value),
     ballNumber:
       phase === 'drawing'
@@ -159,20 +123,18 @@ if (projectionChannel) {
   }
 }
 
-const eligibleParticipants = computed(() =>
-  participants.value.filter((person) => person.presente && !person.contemplado),
-)
-const presentCount = computed(() => participants.value.filter((person) => person.presente).length)
-const winnerCount = computed(() => participants.value.filter((person) => person.contemplado).length)
-const availablePrizes = computed(() =>
-  prizes.filter((prize) => !draws.value.some((draw) => draw.premioId === prize.id)),
-)
-const nextDrawNumber = computed(() => draws.value.length + 1)
+const eligibleCount = computed(() => indicatorData.value.elegiveis)
+const presentCount = computed(() => indicatorData.value.presencasConfirmadas)
+const winnerCount = computed(() => indicatorData.value.servidoresContemplados)
+const availablePrizes = computed(() => prizes.value.filter((prize) => !prize.utilizado))
+const nextDrawNumber = computed(() => indicatorData.value.proximoNumero)
 const latestDraw = computed(() => draws.value.at(-1))
 const canStartDraw = computed(
   () =>
-    eligibleParticipants.value.length > 0 &&
-    (!latestDraw.value || projectionPhase.value === 'preparing'),
+    !loading.value &&
+    !loadError.value &&
+    (pendingOperation.value ||
+      (eligibleCount.value > 0 && (!latestDraw.value || projectionPhase.value === 'preparing'))),
 )
 const confettiPieces = Array.from({ length: 300 }, (_, index) => ({
   id: index,
@@ -204,6 +166,31 @@ async function celebrate(selectedDraws) {
   if (!celebrationDialog.value?.open) celebrationDialog.value?.showModal()
 }
 
+async function celebrateAll() {
+  if (confirming.value || drawing.value) return
+  confirming.value = true
+  try {
+    const results = []
+    let page = 1
+    let pages = 1
+    do {
+      const history = await requestDrawApi(`/api/sorteios?limit=100&page=${page}`)
+      results.push(...history.dados)
+      pages = history.paginacao.paginas
+      page += 1
+    } while (page <= pages)
+    if (viewActive) await celebrate(results)
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível carregar os contemplados',
+      text: error.message,
+    })
+  } finally {
+    confirming.value = false
+  }
+}
+
 function clearCelebration() {
   window.clearTimeout(celebrationTimeout)
   showCelebrationConfetti.value = false
@@ -211,12 +198,7 @@ function clearCelebration() {
 }
 
 function prepareNextDraw() {
-  if (
-    drawing.value ||
-    confirming.value ||
-    !latestDraw.value ||
-    !eligibleParticipants.value.length
-  ) {
+  if (drawing.value || confirming.value || !latestDraw.value || !eligibleCount.value) {
     return
   }
 
@@ -224,44 +206,110 @@ function prepareNextDraw() {
   sendProjectionState()
 }
 
+async function refreshData(recover = false) {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [history, prizeData] = await Promise.all([
+      requestDrawApi('/api/sorteios?limit=100'),
+      requestDrawApi('/api/premios'),
+    ])
+    indicatorData.value = history.indicadores
+    prizes.value = prizeData.dados
+    if (recover) {
+      draws.value = [...history.dados].reverse()
+      pendingOperation.value = readPendingDraw()
+      if (pendingOperation.value) {
+        const operation = pendingOperation.value
+        const found = await requestDrawApi(
+          `/api/sorteios?chave=${encodeURIComponent(operation.chave)}`,
+        )
+        if (found.dados.length) {
+          const recovered = found.dados[0]
+          if (!latestDraw.value || recovered.numero > latestDraw.value.numero) {
+            draws.value.push(recovered)
+          }
+          indicatorData.value = found.indicadores
+          clearPendingDraw(operation.chave)
+          pendingOperation.value = null
+        }
+      }
+      projectionPhase.value = latestDraw.value ? 'winner' : 'ready'
+      ballNumber.value = latestDraw.value?.matricula ?? '?'
+      sendProjectionState(true)
+    }
+  } catch (error) {
+    loadError.value = error.message
+  } finally {
+    loading.value = false
+  }
+}
+
 async function confirmDraw() {
   if (drawing.value || confirming.value || !canStartDraw.value) return
-
   confirming.value = true
-  const selectedPrize = availablePrizes.value.find((prize) => prize.id === selectedPrizeId.value)
-  const result = await Swal.fire({
-    icon: 'question',
-    title: 'Confirmar sorteio?',
-    html: `
-      <div class="draw-confirm-summary">
-        <p><strong>Número do sorteio:</strong> #${String(nextDrawNumber.value).padStart(3, '0')}</p>
-        <p><strong>Participantes elegíveis:</strong> ${eligibleParticipants.value.length}</p>
-        <p><strong>Prêmio:</strong> ${selectedPrize?.nome ?? 'Sem prêmio definido'}</p>
-        <p>O resultado será definitivo nesta demonstração.</p>
-      </div>
-    `,
-    showCancelButton: true,
-    confirmButtonText: 'Confirmar e sortear',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#0868af',
-    cancelButtonColor: '#65758a',
-    reverseButtons: true,
-  })
-  confirming.value = false
+  try {
+    pendingOperation.value = readPendingDraw()
+    const result = await Swal.fire({
+      icon: 'question',
+      title: pendingOperation.value ? 'Recuperar operação pendente?' : 'Confirmar sorteio?',
+      text: pendingOperation.value
+        ? 'A mesma solicitação será consultada ou reenviada, sem criar outro resultado para esta operação.'
+        : `Sorteio #${nextDrawNumber.value} · ${eligibleCount.value} participantes elegíveis · ${availablePrizes.value.find((prize) => prize.id === selectedPrizeId.value)?.nome ?? 'Sem prêmio associado'}. O resultado será definitivo.`,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar e continuar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0868af',
+      cancelButtonColor: '#65758a',
+      reverseButtons: true,
+    })
+    if (!result.isConfirmed || !viewActive) return
+    const operation = pendingOperation.value ?? {
+      chave: crypto.randomUUID(),
+      numeroEsperado: nextDrawNumber.value,
+      premioId: selectedPrizeId.value || null,
+    }
+    // Persiste antes do POST para sobreviver a recargas e respostas perdidas.
+    localStorage.setItem(pendingDrawKey, JSON.stringify(operation))
+    pendingOperation.value = operation
+    let draw
+    try {
+      draw = await requestDrawApi('/api/sorteios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(operation),
+      })
+    } catch (error) {
+      if ([400, 404, 409].includes(error.status)) {
+        clearPendingDraw(operation.chave)
+        pendingOperation.value = null
+      }
+      throw error
+    }
+    // Uma falha ao limpar o armazenamento nunca deve provocar outro POST.
+    clearPendingDraw(operation.chave)
+    pendingOperation.value = null
+    if (!viewActive) return
+    await animateDraw(draw)
+    await refreshData()
+  } catch (error) {
+    if (!viewActive) return
+    drawing.value = false
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível concluir a apresentação',
+      text: error.message,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    await refreshData(true)
+  } finally {
+    confirming.value = false
+  }
+}
 
-  if (!result.isConfirmed) return
-
-  const pool = eligibleParticipants.value
-  if (!pool.length) return
-
-  // O vencedor é escolhido uma vez; os números animados são apenas visuais.
-  const selectedWinner = pool[Math.floor(Math.random() * pool.length)]
-  const winner = { ...selectedWinner }
-  const drawNumber = nextDrawNumber.value
-  const prize = selectedPrize
-    ? availablePrizes.value.find((item) => item.id === selectedPrize.id)
-    : null
-
+async function animateDraw(draw) {
+  activeDrawNumber = draw.numero
   drawing.value = true
   projectionPhase.value = 'drawing'
   ballNumber.value = '•••'
@@ -278,6 +326,10 @@ async function confirmDraw() {
 
     await new Promise((resolve) => {
       const animateDigits = () => {
+        if (!viewActive) {
+          resolve()
+          return
+        }
         const elapsed = performance.now() - animationStart
         ballNumber.value = digitSteps
           .map((step, position) => (tick * step + position * 2) % 10)
@@ -299,23 +351,13 @@ async function confirmDraw() {
     await new Promise((resolve) => window.setTimeout(resolve, duration))
   }
 
-  const draw = {
-    numero: drawNumber,
-    participanteId: winner.id,
-    nome: winner.nome,
-    matricula: winner.matricula,
-    origem: winner.origem,
-    premioId: prize?.id ?? null,
-    premioNome: prize?.nome ?? '',
-  }
-
-  const participant = participants.value.find((person) => person.id === winner.id)
-  participant.contemplado = true
-  draws.value.push(draw)
+  if (!viewActive) return
+  draws.value = [...draws.value.filter((item) => item.id !== draw.id), draw]
   selectedPrizeId.value = ''
-  ballNumber.value = winner.matricula
+  ballNumber.value = draw.matricula
   drawing.value = false
   projectionPhase.value = 'winner'
+  activeDrawNumber = null
 
   sendProjectionState()
 
@@ -330,6 +372,7 @@ async function confirmDraw() {
 }
 
 onBeforeUnmount(() => {
+  viewActive = false
   announceProjectionDisconnect()
   window.clearInterval(projectionHeartbeatInterval)
   projectionChannelActive = false
@@ -338,8 +381,10 @@ onBeforeUnmount(() => {
   window.clearTimeout(celebrationTimeout)
 })
 
-onMounted(() => {
-  sendProjectionState()
+onMounted(async () => {
+  await refreshData(true)
+  if (!viewActive) return
+  sendProjectionState(true)
   sendProjectionHeartbeat()
   projectionHeartbeatInterval = window.setInterval(sendProjectionHeartbeat, 2000)
 })
@@ -391,7 +436,7 @@ onMounted(() => {
           Uma experiência especial, justa e emocionante para os participantes.
         </p>
       </div>
-      <span class="draw-demo-tag">DEMONSTRAÇÃO · DADOS FICTÍCIOS SEM SINCRONIZAÇÃO</span>
+      <span class="draw-demo-tag">RESULTADOS PERSISTIDOS · DADOS REAIS</span>
     </header>
 
     <div class="draw-layout">
@@ -404,11 +449,13 @@ onMounted(() => {
             <span class="draw-stage-pill">
               SORTEIO Nº
               {{
-                String(drawing || !latestDraw ? nextDrawNumber : latestDraw.numero).padStart(3, '0')
+                String(
+                  drawing ? activeDrawNumber : !latestDraw ? nextDrawNumber : latestDraw.numero,
+                ).padStart(3, '0')
               }}
             </span>
             <span class="draw-stage-count">
-              <strong>{{ eligibleParticipants.length }}</strong> participantes aptos
+              <strong>{{ eligibleCount }}</strong> participantes aptos
             </span>
           </header>
 
@@ -418,7 +465,7 @@ onMounted(() => {
                 ? 'A SORTE ESTÁ GIRANDO!'
                 : latestDraw
                   ? 'TEMOS UM VENCEDOR!'
-                  : eligibleParticipants.length
+                  : eligibleCount
                     ? 'A SORTE VAI GIRAR!'
                     : 'SORTEIO AGUARDANDO'
             }}
@@ -441,7 +488,7 @@ onMounted(() => {
                 ? 'Boa sorte a todos os participantes!'
                 : latestDraw
                   ? latestDraw.nome
-                  : eligibleParticipants.length
+                  : eligibleCount
                     ? 'Quem será o próximo vencedor?'
                     : 'Não há participantes elegíveis no momento.'
             }}
@@ -493,10 +540,11 @@ onMounted(() => {
             <button
               class="draw-celebrate-all-button"
               type="button"
-              @click="celebrate([...draws].reverse())"
+              :disabled="confirming || drawing"
+              @click="celebrateAll"
             >
               <svg class="draw-icon" aria-hidden="true"><use href="#draw-users" /></svg>
-              Celebrar todos ({{ draws.length }})
+              Celebrar todos ({{ winnerCount }})
             </button>
             <RouterLink class="draw-history-link" to="/vencedores">
               Ver no histórico
@@ -520,6 +568,17 @@ onMounted(() => {
           Controle do sorteio
         </h2>
         <p class="draw-panel-subtitle">Confira os números e inicie quando estiver pronto.</p>
+        <p v-if="loading" class="draw-field-note" role="status">Consultando dados reais…</p>
+        <p v-if="loadError" class="draw-no-eligible" role="alert">{{ loadError }}</p>
+        <button
+          v-if="!drawing && !confirming"
+          class="draw-prepare-button"
+          type="button"
+          :disabled="loading"
+          @click="refreshData(true)"
+        >
+          Atualizar dados
+        </button>
 
         <div class="draw-stats" aria-label="Resumo dos participantes">
           <article class="draw-stat">
@@ -532,7 +591,7 @@ onMounted(() => {
           </article>
           <article class="draw-stat draw-stat-eligible">
             <span>Elegíveis agora</span>
-            <strong>{{ eligibleParticipants.length }}</strong>
+            <strong>{{ eligibleCount }}</strong>
           </article>
         </div>
 
@@ -541,7 +600,9 @@ onMounted(() => {
           <select
             id="draw-prize-select"
             v-model="selectedPrizeId"
-            :disabled="drawing || confirming || !availablePrizes.length"
+            :disabled="
+              loading || drawing || confirming || !!pendingOperation || !availablePrizes.length
+            "
           >
             <option value="">Nenhum prêmio selecionado</option>
             <option v-for="prize in availablePrizes" :key="prize.id" :value="prize.id">
@@ -564,20 +625,22 @@ onMounted(() => {
                 ? 'Sorteando...'
                 : confirming
                   ? 'Aguardando confirmação...'
-                  : 'Iniciar sorteio'
+                  : pendingOperation
+                    ? 'Recuperar operação pendente'
+                    : 'Iniciar sorteio'
             }}
           </button>
           <button
             v-if="latestDraw && projectionPhase === 'winner'"
             class="draw-prepare-button"
             type="button"
-            :disabled="drawing || confirming || !eligibleParticipants.length"
+            :disabled="drawing || confirming || !eligibleCount"
             @click="prepareNextDraw"
           >
             Preparar próximo sorteio
           </button>
           <p
-            v-if="latestDraw && projectionPhase === 'winner' && eligibleParticipants.length"
+            v-if="latestDraw && projectionPhase === 'winner' && eligibleCount"
             class="draw-prepare-note"
           >
             O resultado atual permanece visível no Telão até preparar a próxima rodada.
@@ -587,7 +650,7 @@ onMounted(() => {
             <svg class="draw-icon" aria-hidden="true"><use href="#draw-shield" /></svg>
             <p>Só participam servidores <strong>presentes e ainda não contemplados</strong>.</p>
           </div>
-          <p v-if="!eligibleParticipants.length" class="draw-no-eligible" role="status">
+          <p v-if="!eligibleCount" class="draw-no-eligible" role="status">
             Não há participantes aptos para um novo sorteio.
           </p>
         </div>
@@ -621,7 +684,7 @@ onMounted(() => {
             Este navegador não oferece suporte à sincronização do Telão.
           </p>
         </div>
-        <p class="draw-demo-note">Demonstração local · Não sincronizada com o Credenciamento</p>
+        <p class="draw-demo-note">Resultados definitivos registrados no SQLite.</p>
       </aside>
     </div>
   </div>

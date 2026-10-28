@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { requestDrawApi } from '../../services/sorteios'
 import brasao from '../../assets/images/brasao-contagem.png'
 import './TelaoView.css'
 
@@ -19,10 +20,14 @@ const confettiRound = ref(0)
 const fullscreen = ref(false)
 const statusMessage = ref('')
 const connectionLost = ref(false)
+const suppressEntrance = ref(false)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let confettiTimeout
 let connectionCheckInterval
 let lastOperatorMessageAt = 0
+let messageRevision = 0
+let viewActive = true
+const verifiedDraws = new Map()
 
 const connectionTimeout = 6000
 const connectionCheckFrequency = 1000
@@ -40,6 +45,8 @@ const confettiPieces = Array.from({ length: 180 }, (_, index) => ({
 function isValidDraw(draw) {
   return (
     draw &&
+    Number.isSafeInteger(draw.id) &&
+    draw.id > 0 &&
     typeof draw.nome === 'string' &&
     typeof draw.matricula === 'string' &&
     typeof draw.origem === 'string'
@@ -57,7 +64,7 @@ function celebrate() {
   }, 5200)
 }
 
-function handleProjectionMessage({ data }) {
+async function handleProjectionMessage({ data }) {
   if (data?.sessionId !== projectionSessionId) return
 
   if (data.type === 'heartbeat') {
@@ -83,6 +90,27 @@ function handleProjectionMessage({ data }) {
 
   lastOperatorMessageAt = Date.now()
   connectionLost.value = false
+  const revision = ++messageRevision
+  const candidate =
+    data.phase === 'winner' ? data.draw : data.phase === 'preparing' ? data.lastDraw : null
+  let confirmedDraw = null
+  if (candidate) {
+    if (!isValidDraw(candidate)) return
+    try {
+      confirmedDraw =
+        verifiedDraws.get(candidate.id) ?? (await requestDrawApi(`/api/sorteios/${candidate.id}`))
+      if (!viewActive || revision !== messageRevision) return
+      verifiedDraws.set(confirmedDraw.id, confirmedDraw)
+      statusMessage.value = ''
+    } catch {
+      if (viewActive && revision === messageRevision) {
+        markConnectionLost()
+        statusMessage.value =
+          'Não foi possível confirmar o resultado na API. Aguardando nova sincronização.'
+      }
+      return
+    }
+  }
   const previousPhase = phase.value
   const previousDrawNumber = drawNumber.value
   phase.value = data.phase
@@ -90,14 +118,19 @@ function handleProjectionMessage({ data }) {
   ballNumber.value = typeof data.ballNumber === 'string' ? data.ballNumber : '?'
 
   if (data.phase === 'winner') {
-    winner.value = data.draw
-    lastWinner.value = data.draw
+    suppressEntrance.value =
+      Boolean(data.snapshot) ||
+      (previousPhase === 'winner' && previousDrawNumber === confirmedDraw.numero)
+    winner.value = confirmedDraw
+    lastWinner.value = confirmedDraw
+    drawNumber.value = confirmedDraw.numero
+    ballNumber.value = confirmedDraw.matricula
     if (!data.snapshot && (previousPhase !== 'winner' || previousDrawNumber !== drawNumber.value)) {
       celebrate()
     }
   } else if (data.phase === 'preparing') {
     winner.value = null
-    lastWinner.value = isValidDraw(data.lastDraw) ? data.lastDraw : null
+    lastWinner.value = confirmedDraw
   } else if (data.phase === 'ready') {
     winner.value = null
     lastWinner.value = null
@@ -109,11 +142,26 @@ function handleProjectionMessage({ data }) {
 function markConnectionLost() {
   if (connectionLost.value) return
   connectionLost.value = true
+  messageRevision += 1
   phase.value = 'disconnected'
   winner.value = null
   ballNumber.value = '?'
   window.clearTimeout(confettiTimeout)
   showConfetti.value = false
+  recoverLastDraw()
+}
+
+async function recoverLastDraw() {
+  const revision = messageRevision
+  try {
+    const history = await requestDrawApi('/api/sorteios?limit=1')
+    if (viewActive && revision === messageRevision && phase.value === 'disconnected') {
+      lastWinner.value = history.dados[0] ?? null
+    }
+  } catch {
+    if (viewActive && revision === messageRevision)
+      statusMessage.value = 'Não foi possível recuperar o último sorteio na API.'
+  }
 }
 
 function requestSnapshot() {
@@ -144,6 +192,7 @@ function updateFullscreenState() {
 }
 
 onMounted(() => {
+  recoverLastDraw()
   if (!projectionChannel) {
     statusMessage.value = 'A sincronização requer um navegador com suporte ao BroadcastChannel.'
   } else if (!projectionSessionId) {
@@ -161,6 +210,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  viewActive = false
+  messageRevision += 1
   window.clearInterval(connectionCheckInterval)
   projectionChannel?.close()
   document.removeEventListener('fullscreenchange', updateFullscreenState)
@@ -172,7 +223,7 @@ onBeforeUnmount(() => {
   <section
     ref="projectionScreen"
     class="projection-screen"
-    :class="`phase-${phase}`"
+    :class="[`phase-${phase}`, { 'is-snapshot': suppressEntrance }]"
     aria-label="Apresentação do sorteio em telão"
   >
     <header class="projection-top">

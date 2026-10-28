@@ -375,6 +375,11 @@
   animation: projection-fade-up 0.7s ease both;
 }
 
+.phase-winner.is-snapshot .projection-ball,
+.phase-winner.is-snapshot .projection-copy {
+  animation: none;
+}
+
 .projection-footer {
   position: relative;
   z-index: 2;

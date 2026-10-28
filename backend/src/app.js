@@ -1,4 +1,5 @@
 import express from 'express'
+import { registerDrawRoutes } from './sorteios.js'
 
 export function createApp(db) {
   const app = express()
@@ -321,6 +322,8 @@ export function createApp(db) {
       })
     return response.json({ mensagem: 'Prêmio excluído com sucesso.' })
   })
+
+  registerDrawRoutes(app, db)
 
   app.use((error, _request, response, _next) => {
     if (error instanceof SyntaxError && 'body' in error) {
