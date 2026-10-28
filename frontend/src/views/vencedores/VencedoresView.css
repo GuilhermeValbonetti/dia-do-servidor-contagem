@@ -174,7 +174,7 @@
   border: 1px solid #e1eaf1;
   border-radius: 17px;
   background: #fff;
-  box-shadow: 0 6px 24px #0e345c0a;
+  box-shadow: 0 3px 12px #0e345c08;
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease;
@@ -272,7 +272,8 @@
   margin-top: 15px;
   padding: 12px 14px;
   border-radius: 11px;
-  background: #fff8e7;
+  border: 1px solid #e7edf3;
+  background: #fff;
   color: #7b5b21;
   font-size: 12px;
   line-height: 1.5;
@@ -284,7 +285,7 @@
 }
 
 .winner-prize.no-prize {
-  background: #f4f7fa;
+  background: #fff;
   color: #60778b;
 }
 
@@ -557,13 +558,14 @@
   align-content: start;
   gap: 7px;
   padding: 13px 15px;
-  border: 1px solid #ffffff35;
+  border: 1px solid #e1e8ef;
   border-radius: 15px;
-  background: #ffffff13;
+  background: #fff;
+  color: #193b58;
 }
 
 .celebration-card small {
-  color: #ffe19a;
+  color: #64748b;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.09em;
@@ -576,7 +578,7 @@
 }
 
 .celebration-card span {
-  color: #dbe8f8;
+  color: #52677b;
   font-size: 11px;
   line-height: 1.35;
   overflow-wrap: anywhere;

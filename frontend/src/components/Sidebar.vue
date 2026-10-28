@@ -78,9 +78,12 @@ const navigationItems = [
 ]
 
 const guideSteps = [
-  { title: 'Confirme a presença', description: 'Registre quem chegou.' },
-  { title: 'Realize o sorteio', description: 'Somente quem está apto.' },
-  { title: 'Veja os vencedores', description: 'Consulte os resultados.' },
+  { title: 'Confirme a presença', description: 'Busque a matrícula e confira a instituição.' },
+  {
+    title: 'Realize o sorteio',
+    description: 'Só presentes que ainda não ganharam. Prêmio opcional.',
+  },
+  { title: 'Veja os vencedores', description: 'Consulte e celebre os resultados registrados.' },
 ]
 
 function accessibleLabel(item) {
