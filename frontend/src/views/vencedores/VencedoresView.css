@@ -146,6 +146,15 @@
   gap: 12px;
 }
 
+.winners-list-highlights .winner-card-top,
+.winners-list-highlights .winner-main {
+  flex-wrap: wrap;
+}
+
+.winners-list-highlights .winner-identity {
+  flex-basis: 140px;
+}
+
 .winners-group-title {
   margin: 20px 0 12px;
   color: #334c67;
@@ -657,6 +666,10 @@
 }
 
 @media (min-width: 1150px) {
+  .winners-list-highlights {
+    grid-template-columns: repeat(var(--winner-columns), minmax(0, 1fr));
+  }
+
   .winners-view {
     padding: 39px 45px 70px;
   }

@@ -322,7 +322,13 @@ onBeforeUnmount(() => {
           :aria-labelledby="`winners-${group.id}`"
         >
           <h3 :id="`winners-${group.id}`" class="winners-group-title">{{ group.title }}</h3>
-          <div class="winners-list">
+          <div
+            class="winners-list"
+            :class="{ 'winners-list-highlights': group.id === 'latest' }"
+            :style="
+              group.id === 'latest' ? { '--winner-columns': group.winners.length } : undefined
+            "
+          >
             <article v-for="winner in group.winners" :key="winner.id" class="winner-card">
               <div class="winner-card-top">
                 <span class="winner-sequence">

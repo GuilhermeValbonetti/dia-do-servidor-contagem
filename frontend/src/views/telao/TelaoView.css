@@ -130,8 +130,7 @@
   text-align: right;
 }
 
-.projection-fullscreen-button,
-.projection-celebrate-button {
+.projection-fullscreen-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -330,33 +329,6 @@
 
 .projection-last-winner strong {
   color: #fff;
-}
-
-.projection-celebrate-button {
-  display: none;
-  margin-top: 20px;
-  padding: clamp(10px, 1.05vw, 16px) clamp(14px, 1.6vw, 24px);
-  border-color: #f3d46c;
-  background: linear-gradient(115deg, #f4d676, #e8b533);
-  box-shadow: 0 8px 26px #020c2e42;
-  color: #283d5d;
-  font-size: clamp(12px, 1.1vw, 17px);
-  font-weight: 900;
-}
-
-.projection-celebrate-button:hover,
-.projection-celebrate-button:focus-visible {
-  background: #ffe491;
-  outline: 3px solid #fff;
-  outline-offset: 3px;
-}
-
-.projection-celebrate-button span {
-  font-size: 19px;
-}
-
-.phase-winner .projection-celebrate-button {
-  display: inline-flex;
 }
 
 .phase-drawing .projection-ball {

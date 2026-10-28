@@ -233,8 +233,8 @@ import './GuiaView.css'
             resultado registrado.
           </li>
           <li>
-            Use <strong>Comemorar novamente</strong> no Telão para repetir os confetes, sem criar
-            outro sorteio.
+            Os confetes aparecem automaticamente ao revelar um novo vencedor. As ações de celebração
+            ficam nas telas Sorteio e Vencedores.
           </li>
         </ol>
         <p class="guide-rule">

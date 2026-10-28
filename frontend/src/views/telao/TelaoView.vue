@@ -355,15 +355,6 @@ onBeforeUnmount(() => {
           <span aria-hidden="true">🎁</span>
           {{ winner.premioNome }}
         </div>
-        <button
-          v-if="phase === 'winner' && winner"
-          class="projection-celebrate-button"
-          type="button"
-          @click="celebrate"
-        >
-          <span aria-hidden="true">✦</span>
-          Comemorar novamente
-        </button>
       </div>
     </section>
     <p class="projection-sr-only" aria-live="polite" aria-atomic="true">
