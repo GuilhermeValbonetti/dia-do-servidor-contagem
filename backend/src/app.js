@@ -258,6 +258,70 @@ export function createApp(db) {
     return response.json(indicators)
   })
 
+  app.get('/api/premios', (_request, response) => {
+    const dados = db
+      .prepare(
+        `
+      SELECT p.id, p.nome,
+        EXISTS (SELECT 1 FROM sorteios s WHERE s.premio_id = p.id) AS utilizado
+      FROM premios p ORDER BY p.id DESC
+    `,
+      )
+      .all()
+      .map((premio) => ({ ...premio, utilizado: Boolean(premio.utilizado) }))
+    return response.json({ dados })
+  })
+
+  app.post('/api/premios', (request, response) => {
+    const nome = request.body?.nome
+    if (typeof nome !== 'string') {
+      return response.status(400).json({ erro: 'Informe o nome do prêmio.' })
+    }
+    const cleanedName = nome.trim().replace(/\s+/g, ' ')
+    if (!cleanedName || cleanedName.length > 90) {
+      return response
+        .status(400)
+        .json({ erro: 'O nome do prêmio deve conter entre 1 e 90 caracteres.' })
+    }
+    const result = db
+      .prepare('INSERT INTO premios (nome) VALUES (?)')
+      .run(cleanedName)
+    return response
+      .status(201)
+      .json({ id: result.lastInsertRowid, nome: cleanedName, utilizado: false })
+  })
+
+  app.delete('/api/premios/:id', (request, response) => {
+    const id = Number(request.params.id)
+    if (
+      !/^\d+$/.test(request.params.id) ||
+      !Number.isSafeInteger(id) ||
+      id < 1
+    ) {
+      return response
+        .status(400)
+        .json({ erro: 'Informe um ID de prêmio válido.' })
+    }
+    // O bloqueio de escrita impede que um sorteio utilize o prêmio entre a consulta e a exclusão.
+    const status = db
+      .transaction(() => {
+        if (!db.prepare('SELECT 1 FROM premios WHERE id = ?').get(id))
+          return 404
+        if (db.prepare('SELECT 1 FROM sorteios WHERE premio_id = ?').get(id))
+          return 409
+        db.prepare('DELETE FROM premios WHERE id = ?').run(id)
+        return 200
+      })
+      .immediate()
+    if (status === 404)
+      return response.status(404).json({ erro: 'Prêmio não encontrado.' })
+    if (status === 409)
+      return response.status(409).json({
+        erro: 'Prêmios associados a um sorteio não podem ser excluídos.',
+      })
+    return response.json({ mensagem: 'Prêmio excluído com sucesso.' })
+  })
+
   app.use((error, _request, response, _next) => {
     if (error instanceof SyntaxError && 'body' in error) {
       return response

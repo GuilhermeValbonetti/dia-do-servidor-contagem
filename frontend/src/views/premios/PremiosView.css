@@ -167,6 +167,13 @@
   background: #075b99;
 }
 
+.prize-add-button:disabled,
+.prize-delete-button:disabled,
+.prize-demo-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .prize-error {
   margin: 7px 0 0;
   color: #a83949;
