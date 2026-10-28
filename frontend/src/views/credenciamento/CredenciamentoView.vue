@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import './CredenciamentoView.css'
@@ -61,40 +61,16 @@ const indicators = computed(() => [
   },
 ])
 
-const latestConfirmations = computed(() =>
-  participants.value
-    .filter((person) => person.presente)
-    .sort(
-      (first, second) =>
-        new Date(second.confirmadoEm).getTime() - new Date(first.confirmadoEm).getTime(),
-    )
-    .slice(0, 8),
-)
-
-const filteredParticipants = computed(() => {
-  const query = normalize(directorySearch.value.trim())
-
-  return participants.value
-    .filter((person) => {
-      const status = participantStatus(person)
-      const matchesFilter =
-        activeFilter.value === 'all' ||
-        status === activeFilter.value ||
-        (activeFilter.value === 'confirmed' && status === 'winner')
-      const searchableText = normalize(
-        `${person.nome} ${person.matricula} ${institutionName(person.origem)}`,
-      )
-
-      return matchesFilter && (!query || searchableText.includes(query))
-    })
-    .sort((first, second) => first.nome.localeCompare(second.nome, 'pt-BR'))
-})
+const latestConfirmations = ref([])
+const recentError = ref('')
+let directoryRequest = 0
+let searchTimer
 
 const directoryResultsLabel = computed(() => {
-  const total = filteredParticipants.value.length
+  const total = participants.value.length
   const noun = total === 1 ? 'servidor' : 'servidores'
 
-  return `${total} ${noun} nesta página · ${totalRecords.value} no total`
+  return `${total} ${noun} nesta página · ${totalRecords.value} no resultado`
 })
 
 async function requestApi(url, options) {
@@ -139,19 +115,30 @@ function mapServer(server) {
 }
 
 async function loadDirectory(page = currentPage.value) {
+  const requestId = ++directoryRequest
   loading.value = true
   loadError.value = ''
 
   try {
-    const data = await requestApi(`/api/servidores?page=${page}&limit=${pageSize}`)
+    const query = new URLSearchParams({
+      page: String(page),
+      limit: String(pageSize),
+      status: activeFilter.value,
+      busca: directorySearch.value.trim(),
+    })
+    const data = await requestApi(`/api/servidores?${query}`)
+    if (requestId !== directoryRequest) return
+    if (page > Math.max(1, data.paginacao.paginas)) {
+      return await loadDirectory(Math.max(1, data.paginacao.paginas))
+    }
     participants.value = data.dados.map(mapServer)
     currentPage.value = data.paginacao.pagina
     totalPages.value = data.paginacao.paginas
     totalRecords.value = data.paginacao.total
   } catch (error) {
-    loadError.value = error.message
+    if (requestId === directoryRequest) loadError.value = error.message
   } finally {
-    loading.value = false
+    if (requestId === directoryRequest) loading.value = false
   }
 }
 
@@ -166,21 +153,45 @@ async function loadIndicators() {
 }
 
 async function refreshData(page = currentPage.value) {
-  await Promise.all([loadDirectory(page), loadIndicators()])
+  await Promise.all([loadDirectory(page), loadIndicators(), loadRecentConfirmations()])
 }
 
 async function changePage(page) {
   if (loading.value || page < 1 || page > totalPages.value) return
-  directorySearch.value = ''
   await loadDirectory(page)
 }
 
-function normalize(value) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
+async function loadRecentConfirmations() {
+  recentError.value = ''
+  try {
+    const data = await requestApi('/api/credenciamentos/recentes?limit=8')
+    latestConfirmations.value = data.dados.map(mapServer)
+  } catch (error) {
+    recentError.value = error.message
+  }
 }
+
+function formatConfirmation(value) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(value))
+}
+
+watch([directorySearch, activeFilter], () => {
+  clearTimeout(searchTimer)
+  // Invalida respostas anteriores assim que o filtro muda.
+  directoryRequest += 1
+  loading.value = true
+  currentPage.value = 1
+  searchTimer = setTimeout(() => loadDirectory(1), 250)
+})
+
+onUnmounted(() => {
+  clearTimeout(searchTimer)
+  directoryRequest += 1
+})
 
 function institutionName(origin) {
   return origin === 'camara' ? 'Câmara Municipal de Contagem' : 'Prefeitura Municipal de Contagem'
@@ -577,15 +588,16 @@ onMounted(refreshData)
                 <svg class="checkin-icon" aria-hidden="true">
                   <use href="#checkin-check-circle" />
                 </svg>
-                Presenças nesta página
+                Presenças recentes
               </h2>
-              <p class="checkin-panel-subtitle">
-                Confirmações entre os servidores carregados nesta página.
-              </p>
+              <p class="checkin-panel-subtitle">Últimas confirmações registradas em toda a base.</p>
             </div>
-            <span class="checkin-count">{{ latestConfirmations.length }} nesta página</span>
+            <span class="checkin-count">{{ latestConfirmations.length }} recentes</span>
           </header>
-          <div v-if="latestConfirmations.length" class="checkin-confirmation-list">
+          <p v-if="recentError" class="checkin-feedback checkin-feedback-warning" role="alert">
+            Não foi possível atualizar as presenças recentes: {{ recentError }}
+          </p>
+          <div v-else-if="latestConfirmations.length" class="checkin-confirmation-list">
             <article
               v-for="person in latestConfirmations"
               :key="person.id"
@@ -604,6 +616,11 @@ onMounted(refreshData)
               <div class="checkin-confirmation-person">
                 <strong>{{ person.nome }}</strong>
                 <small>{{ person.matricula }} · {{ institutionName(person.origem) }}</small>
+                <small
+                  ><time :datetime="person.confirmadoEm">{{
+                    formatConfirmation(person.confirmadoEm)
+                  }}</time></small
+                >
               </div>
               <span
                 v-if="person.contemplado"
@@ -633,8 +650,8 @@ onMounted(refreshData)
         <aside class="checkin-panel checkin-tip">
           <h2 class="checkin-panel-title">Dica de utilização</h2>
           <p class="checkin-panel-subtitle">
-            Consulte a matrícula <strong>001234</strong> para ver resultados da Prefeitura e da
-            Câmara. Escolha a pessoa correta antes de confirmar.
+            Pesquise a matrícula e confira o nome e a instituição. Se houver mais de um resultado,
+            selecione o registro correto antes de confirmar.
           </p>
         </aside>
       </div>
@@ -648,7 +665,7 @@ onMounted(refreshData)
             Servidores da base
           </h2>
           <p>
-            Consulte os servidores desta página e acompanhe suas situações. Para confirmar presença,
+            Consulte os servidores da base e acompanhe suas situações. Para confirmar presença,
             pesquise a matrícula acima; pela lista, é possível apenas desfazer uma presença.
           </p>
         </div>
@@ -672,14 +689,13 @@ onMounted(refreshData)
       <div class="checkin-directory-tools">
         <label class="checkin-directory-search">
           <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
-          <span class="checkin-sr-only">
-            Buscar nesta página por nome, matrícula ou instituição</span
-          >
+          <span class="checkin-sr-only"> Buscar na base por nome, matrícula ou instituição</span>
           <input
             v-model="directorySearch"
             type="search"
             autocomplete="off"
-            placeholder="Buscar nesta página por nome, matrícula ou instituição..."
+            placeholder="Buscar na base por nome, matrícula ou instituição..."
+            maxlength="200"
           />
         </label>
         <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
@@ -717,9 +733,9 @@ onMounted(refreshData)
           Tentar novamente
         </button>
       </div>
-      <div v-else-if="filteredParticipants.length" class="checkin-participant-list" role="list">
+      <div v-else-if="participants.length" class="checkin-participant-list" role="list">
         <article
-          v-for="person in filteredParticipants"
+          v-for="person in participants"
           :key="person.id"
           class="checkin-participant-row"
           role="listitem"
@@ -765,7 +781,7 @@ onMounted(refreshData)
         <span>
           {{
             directorySearch || activeFilter !== 'all'
-              ? 'Tente outro termo, ajuste o filtro ou consulte outra página.'
+              ? 'Tente outro termo ou ajuste o filtro.'
               : 'Não há servidores nesta página.'
           }}
         </span>
