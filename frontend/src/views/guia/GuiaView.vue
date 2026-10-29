@@ -230,8 +230,8 @@ import './GuiaView.css'
             o link para abrir em uma nova aba.
           </li>
           <li>
-            Mantenha as duas telas abertas no mesmo navegador. Leve a janela do Telão para o
-            projetor ou TV e clique em <strong>Tela cheia</strong>.
+            Os telões acompanham o mesmo servidor, inclusive em outros computadores. Leve a janela
+            do Telão para o projetor ou TV e clique em <strong>Tela cheia</strong>.
           </li>
           <li>
             Conduza o sorteio pela tela do operador. O Telão acompanha a animação e mostra o

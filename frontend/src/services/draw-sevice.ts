@@ -11,6 +11,7 @@ export interface DrawResult {
     name: string
     registrationNumber: string | null
     publicAgency: PublicAgency
+    department: string | null
     present: boolean
     participationNumber: number | null
   }

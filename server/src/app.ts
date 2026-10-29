@@ -10,6 +10,7 @@ import notFoundHandler from './middlewares/not-found-handler.js';
 import participantsRoutes from './routes/participants.routes.js';
 import prizesRoutes from './routes/prizes.routes.js';
 import drawsRoutes from './routes/draws.routes.js';
+import projectionRoutes from './routes/projection.routes.js';
 import { publishUpdates, subscribeToUpdates } from './middlewares/live-updates.js';
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api', publishUpdates);
 app.use('/api/participants', participantsRoutes);
 app.use('/api/prizes', prizesRoutes);
 app.use('/api/draws', drawsRoutes);
+app.use('/api/projection', projectionRoutes);
 
 const frontendDirectory = resolve(
   process.env.FRONTEND_DIST_DIR ?? resolve(process.cwd(), '../frontend/dist'),

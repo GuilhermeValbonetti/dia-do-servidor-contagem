@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/src/server.js",
     "type-check": "tsc --noEmit",
+    "test:projection": "tsx scripts/test-projection.ts",
     "import:participants": "tsx scripts/import-participants.ts",
     "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" --fix"

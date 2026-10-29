@@ -47,7 +47,7 @@ Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. O frontend e
 - Prêmios: cadastro, controle de estoque, exclusão individual e exclusão em lote.
 - Sorteio: seleção exclusivamente pelo back-end entre participantes elegíveis; sessão de sorteio e prêmio opcional. A recuperação da confirmação usa o ID da sessão mantido no navegador.
 - Espaço: inicia o fluxo do botão, com confirmação no modal; não atua em campos, controles, modais ou rodada em andamento.
-- Telão: sessão sincronizada mantida ao navegar ou trocar de aba, fechamento somente manual, animação visual, resultado confirmado pela API, confetes e recuperação sem novo sorteio.
+- Telão: animação e revelação sincronizadas pelo backend entre computadores. Telões abertos durante a rodada recebem a fase atual sem antecipar o vencedor. Preparação da próxima rodada somente pelo botão; fechamento somente manual.
 - Vencedores: histórico paginado, celebrações e reinicialização dos sorteios, presenças e estoques para reutilizar o sistema.
 - Guia: instruções de uso no próprio sistema.
 

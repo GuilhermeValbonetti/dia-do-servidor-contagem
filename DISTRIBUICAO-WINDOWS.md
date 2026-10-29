@@ -58,12 +58,12 @@ Fechar o navegador não encerra a API local. O servidor continua em segundo plan
 
 ## Operação e validação
 
-O pacote trabalha localmente e não precisa de internet após ser criado. O computador do operador e o telão devem usar o mesmo endereço e a mesma origem do navegador para que `BroadcastChannel` sincronize as janelas. A API escuta em `0.0.0.0`; outros computadores da rede podem acessar a aplicação em `http://IP-DO-SERVIDOR:8080`. A sincronização por `BroadcastChannel` continua limitada às janelas do mesmo navegador e computador.
+O pacote trabalha na rede local e não precisa de internet após ser criado. A API escuta em `0.0.0.0`; outros computadores podem acessar a aplicação em `http://IP-DO-SERVIDOR:8080`. Todos os telões conectados ao mesmo backend acompanham a animação e a revelação pelo canal `/api/projection/events`, independentemente do navegador ou computador.
 
 Teste o pacote extraído antes do evento:
 
 - abra o atalho duas vezes e confirme que apenas uma API responde em `http://127.0.0.1:8080/api/health`;
-- abra o painel e `/telao` em janelas do mesmo navegador e valide a sincronização de um sorteio;
+- abra o painel e `/telao` em computadores diferentes conectados ao mesmo servidor e valide a animação e a revelação conjunta de um sorteio;
 - confirme uma presença e crie um sorteio de teste;
 - feche o navegador, abra novamente o atalho e confira que o serviço existente é reutilizado;
 - confira se o banco permanece em `%LOCALAPPDATA%\DiaDoServidor\data` após substituir os arquivos do programa por uma cópia de atualização.

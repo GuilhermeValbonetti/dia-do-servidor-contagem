@@ -32,12 +32,12 @@ export function mapDrawRecord(draw, number) {
     id: draw.id,
     participanteId: draw.participantId,
     numero: number,
-    nome: participant.name,
+    nome: participant.name.toLocaleUpperCase('pt-BR'),
     matricula: participant.registrationNumber ?? '',
     origem: participant.publicAgency === 'CAMARA' ? 'camara' : 'prefeitura',
-    localTrabalhoDescricao: '',
+    localTrabalhoDescricao: participant.department?.toLocaleUpperCase('pt-BR') ?? '',
     sorteadoEm: draw.drawnAt,
     premioId: draw.prize?.id ?? null,
-    premioNome: draw.prize?.name ?? null,
+    premioNome: draw.prize?.name.toLocaleUpperCase('pt-BR') ?? null,
   }
 }

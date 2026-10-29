@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { prisma } from '../database/prisma.js';
 import { AppError } from '../errors/app-error.js';
+import { isProjectionDrawing, startProjection, resetProjection } from './projection.service.js';
 
 const DRAW_SESSION_TIMEOUT_MS = 60_000;
 const DRAW_SESSION_RETENTION_MS = 5 * 60_000;
@@ -24,6 +25,7 @@ interface DrawSession {
 
 const drawSessions = new Map<string, DrawSession>();
 let activeDrawSessionId: string | null = null;
+let selectingWinner = false;
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -45,6 +47,7 @@ const drawSelect = {
       name: true,
       registrationNumber: true,
       publicAgency: true,
+      department: true,
       present: true,
       participationNumber: true,
     },
@@ -58,6 +61,7 @@ const drawSelect = {
 } as const;
 
 export async function drawRandomWinner(prizeId?: number) {
+  if (selectingWinner || isProjectionDrawing()) throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
   if (
     prizeId !== undefined &&
     (!Number.isSafeInteger(prizeId) || prizeId <= 0)
@@ -65,8 +69,9 @@ export async function drawRandomWinner(prizeId?: number) {
     throw new AppError(400, 'ID do prêmio inválido.');
   }
 
+  selectingWinner = true;
   try {
-    return await prisma.$transaction(async (transaction) => {
+    const result = await prisma.$transaction(async (transaction) => {
       const eligibleParticipants = await transaction.participant.findMany({
         where: {
           present: true,
@@ -119,14 +124,17 @@ export async function drawRandomWinner(prizeId?: number) {
         }
       }
 
-      return transaction.draw.create({
+      const draw = await transaction.draw.create({
         data: {
           participantId: selectedParticipant.id,
           ...(prizeId !== undefined ? { prizeId } : {}),
         },
         select: drawSelect,
       });
+      return { draw, drawNumber: await transaction.draw.count() };
     });
+    startProjection(result.draw, result.drawNumber);
+    return result.draw;
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new AppError(
@@ -136,6 +144,8 @@ export async function drawRandomWinner(prizeId?: number) {
     }
 
     throw error;
+  } finally {
+    selectingWinner = false;
   }
 }
 
@@ -160,6 +170,7 @@ function scheduleSessionCleanup(session: DrawSession): void {
 }
 
 export async function startDrawSession(prizeId?: number) {
+  if (isProjectionDrawing()) throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
   validatePrizeId(prizeId);
 
   if (activeDrawSessionId) {
@@ -308,6 +319,7 @@ export async function listDraws() {
 }
 
 export async function resetDrawHistory() {
+  if (selectingWinner || isProjectionDrawing()) throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
   const activeSession = activeDrawSessionId
     ? drawSessions.get(activeDrawSessionId)
     : undefined;
@@ -320,7 +332,7 @@ export async function resetDrawHistory() {
     throw new AppError(409, 'Finalize ou cancele o sorteio em andamento antes de reiniciar.');
   }
 
-  return prisma.$transaction(async (transaction) => {
+  const result = await prisma.$transaction(async (transaction) => {
     const prizes = await transaction.prize.findMany({
       select: { id: true, quantityTotal: true },
     });
@@ -350,6 +362,8 @@ export async function resetDrawHistory() {
 
     return { deletedDraws, resetParticipants };
   });
+  resetProjection();
+  return result;
 }
 
 export async function getDrawByParticipantId(participantId: number) {

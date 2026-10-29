@@ -1,17 +1,10 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { listDrawsForDisplay } from '../../services/draw-view-model'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import brasao from '../../assets/images/brasao-contagem.png'
 import './TelaoView.css'
-import { useLiveRefresh } from '../../services/live-updates'
+import { subscribeProjection } from '../../services/projection-sync'
 
-useLiveRefresh(() => recoverLastDraw())
-
-const route = useRoute()
-const projectionSessionId = typeof route.query.session === 'string' ? route.query.session : null
-const projectionChannel =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dia-do-servidor-telao') : null
+let stopProjection
 const projectionScreen = ref(null)
 const phase = ref('disconnected')
 const ballNumber = ref('?')
@@ -26,19 +19,8 @@ const connectionLost = ref(false)
 const suppressEntrance = ref(false)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let confettiTimeout
-let connectionCheckInterval
-let lastOperatorMessageAt = 0
-let messageRevision = 0
 let viewActive = true
 let digitsFrame = null
-let awaitingApiSync = false
-let winnerVisibleTimeout
-let preparationRequestTimeout
-let acknowledgedWinnerId = null
-const verifiedDraws = new Map()
-
-const connectionTimeout = 70000
-const connectionCheckFrequency = 1000
 
 const confettiPieces = ref([])
 
@@ -90,10 +72,10 @@ function stopDigits() {
   digitsFrame = null
 }
 
-function startDigits() {
+function startDigits(elapsedMs = 0) {
   stopDigits()
   if (reducedMotion) return
-  const start = performance.now()
+  const start = performance.now() - elapsedMs
   let lastStep = -1
   const update = (now) => {
     if (!viewActive || phase.value !== 'drawing') return
@@ -111,22 +93,6 @@ function startDigits() {
 }
 
 async function handleProjectionMessage({ data }) {
-  if (data?.sessionId !== projectionSessionId) return
-
-  if (data.type === 'heartbeat') {
-    const wasDisconnected = connectionLost.value
-    lastOperatorMessageAt = Date.now()
-    connectionLost.value = false
-    if (wasDisconnected || awaitingApiSync) requestSnapshot()
-    return
-  }
-
-  if (data.type === 'operator-disconnected') {
-    // Preserva a apresentação enquanto o operador navega ou recarrega a página.
-    requestSnapshot()
-    return
-  }
-
   if (
     data?.type !== 'state' ||
     !['ready', 'drawing', 'winner', 'preparing'].includes(data.phase) ||
@@ -135,7 +101,6 @@ async function handleProjectionMessage({ data }) {
     return
   }
 
-  lastOperatorMessageAt = Date.now()
   connectionLost.value = false
   if (
     data.phase === 'drawing' &&
@@ -151,47 +116,16 @@ async function handleProjectionMessage({ data }) {
     }
     return
   }
-  const revision = ++messageRevision
-  window.clearTimeout(winnerVisibleTimeout)
-  if (data.phase !== 'winner') window.clearTimeout(preparationRequestTimeout)
   const candidate =
     data.phase === 'winner' ? data.draw : data.phase === 'preparing' ? data.lastDraw : null
-  let confirmedDraw = null
-  if (candidate) {
-    if (!isValidDraw(candidate)) return
-    try {
-      confirmedDraw = verifiedDraws.get(candidate.id)
-      if (!confirmedDraw) {
-        const history = await listDrawsForDisplay()
-        const matchingDraw = history.find((draw) => draw.id === candidate.id)
-        if (!matchingDraw || matchingDraw.participanteId !== candidate.participanteId) {
-          throw new Error('O resultado consultado não corresponde ao sorteio apresentado.')
-        }
-        confirmedDraw = matchingDraw
-      }
-      if (!viewActive || revision !== messageRevision) return
-      verifiedDraws.set(confirmedDraw.id, confirmedDraw)
-      awaitingApiSync = false
-      statusMessage.value = ''
-    } catch {
-      if (viewActive && revision === messageRevision) {
-        awaitingApiSync = true
-        stopDigits()
-        phase.value = 'disconnected'
-        winner.value = null
-        showConfetti.value = false
-        statusMessage.value =
-          'Não foi possível confirmar o resultado na API. Aguardando nova sincronização.'
-      }
-      return
-    }
-  }
+  const confirmedDraw = candidate
+  if (candidate && !isValidDraw(candidate)) return
   const previousPhase = phase.value
   const previousDrawNumber = drawNumber.value
   phase.value = data.phase
   drawNumber.value = Number.isInteger(data.drawNumber) ? data.drawNumber : 1
   ballNumber.value = typeof data.ballNumber === 'string' ? data.ballNumber : '?'
-  if (data.phase === 'drawing') startDigits()
+  if (data.phase === 'drawing') startDigits(data.elapsedMs)
   else stopDigits()
 
   if (data.phase === 'winner') {
@@ -202,32 +136,6 @@ async function handleProjectionMessage({ data }) {
     lastWinner.value = confirmedDraw
     drawNumber.value = confirmedDraw.numero
     ballNumber.value = confirmedDraw.matricula
-    if (acknowledgedWinnerId !== confirmedDraw.id) {
-      const id = confirmedDraw.id
-      await nextTick()
-      winnerVisibleTimeout = window.setTimeout(
-        () => {
-          if (!viewActive || phase.value !== 'winner' || winner.value?.id !== id) return
-          acknowledgedWinnerId = id
-          projectionChannel?.postMessage({
-            type: 'winner-visible',
-            sessionId: projectionSessionId,
-            drawId: id,
-          })
-          // O Telão pede a transição caso os timers do operador estejam limitados.
-          preparationRequestTimeout = window.setTimeout(() => {
-            if (viewActive && phase.value === 'winner' && winner.value?.id === id) {
-              projectionChannel?.postMessage({
-                type: 'prepare-request',
-                sessionId: projectionSessionId,
-                drawId: id,
-              })
-            }
-          }, 10000)
-        },
-        suppressEntrance.value || reducedMotion ? 0 : 800,
-      )
-    }
     if (!data.snapshot && (previousPhase !== 'winner' || previousDrawNumber !== drawNumber.value)) {
       celebrate()
     }
@@ -240,34 +148,6 @@ async function handleProjectionMessage({ data }) {
   } else {
     winner.value = null
   }
-}
-
-function checkOperatorConnection() {
-  // A ausência do operador não encerra nem limpa o telão.
-  const silence = Date.now() - lastOperatorMessageAt
-  if (silence >= connectionTimeout) requestSnapshot()
-}
-
-async function recoverLastDraw() {
-  const revision = messageRevision
-  try {
-    const history = await listDrawsForDisplay()
-    if (
-      viewActive &&
-      revision === messageRevision &&
-      phase.value === 'disconnected'
-    ) {
-      lastWinner.value = history[0] ?? null
-    }
-  } catch {
-    if (viewActive && revision === messageRevision)
-      statusMessage.value = 'Não foi possível recuperar o último sorteio na API.'
-  }
-}
-
-function requestSnapshot() {
-  if (!projectionChannel || !projectionSessionId) return
-  projectionChannel.postMessage({ type: 'snapshot-request', sessionId: projectionSessionId })
 }
 
 async function toggleFullscreen() {
@@ -293,29 +173,19 @@ function updateFullscreenState() {
 }
 
 onMounted(() => {
-  recoverLastDraw()
-  if (!projectionChannel) {
-    statusMessage.value = 'A sincronização requer um navegador com suporte ao BroadcastChannel.'
-  } else if (!projectionSessionId) {
-    statusMessage.value = 'Abra o Telão pelo botão da tela Sorteio para sincronizar a apresentação.'
-  } else {
-    projectionChannel.addEventListener('message', handleProjectionMessage)
-    lastOperatorMessageAt = Date.now()
-    requestSnapshot()
-    connectionCheckInterval = window.setInterval(checkOperatorConnection, connectionCheckFrequency)
-  }
-
+  stopProjection = subscribeProjection(
+    (data) => handleProjectionMessage({ data }),
+    () => {
+      connectionLost.value = true
+    },
+  )
   document.addEventListener('fullscreenchange', updateFullscreenState)
 })
 
 onBeforeUnmount(() => {
-  window.clearTimeout(preparationRequestTimeout)
-  window.clearTimeout(winnerVisibleTimeout)
   viewActive = false
   stopDigits()
-  messageRevision += 1
-  window.clearInterval(connectionCheckInterval)
-  projectionChannel?.close()
+  stopProjection?.()
   document.removeEventListener('fullscreenchange', updateFullscreenState)
   window.clearTimeout(confettiTimeout)
 })
@@ -380,7 +250,7 @@ onBeforeUnmount(() => {
             {{ ballNumber }}
           </strong>
           <span class="projection-ball-caption">
-            {{ phase === 'winner' ? 'SORTEADO' : 'Nº DA SORTE' }}
+            {{ phase === 'winner' ? 'SORTEADA' : 'Nº DA SORTE' }}
           </span>
         </div>
       </div>
@@ -419,16 +289,26 @@ onBeforeUnmount(() => {
                     : 'Aguardando conexão com a tela Sorteio'
           }}
         </h1>
-        <p v-if="phase === 'winner' && winner" class="projection-subtitle">
-          Matrícula {{ winner.matricula }} ·
-          {{
-            winner.origem === 'camara'
-              ? 'Câmara Municipal de Contagem'
-              : 'Prefeitura Municipal de Contagem'
-          }}
-        </p>
-        <p v-if="phase === 'winner' && winner?.localTrabalhoDescricao" class="projection-workplace">
-          Local de trabalho: {{ winner.localTrabalhoDescricao }}
+        <p
+          v-if="phase === 'winner' && winner"
+          class="projection-affiliation"
+          :class="{ 'projection-affiliation--camara': winner.origem === 'camara' }"
+        >
+          <strong>
+            {{
+              winner.origem === 'camara'
+                ? 'CÂMARA MUNICIPAL DE CONTAGEM'
+                : 'PREFEITURA MUNICIPAL DE CONTAGEM'
+            }}
+          </strong>
+          <span
+            v-if="winner.localTrabalhoDescricao"
+            class="projection-affiliation-workplace"
+            :class="{ 'projection-affiliation-workplace--below': winner.origem === 'prefeitura' }"
+          >
+            <template v-if="winner.origem === 'camara'"> — </template>
+            {{ winner.localTrabalhoDescricao }}
+          </span>
         </p>
         <p v-if="phase === 'drawing'" class="projection-subtitle">
           O resultado será revelado em instantes.

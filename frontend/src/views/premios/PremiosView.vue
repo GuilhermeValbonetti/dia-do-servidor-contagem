@@ -48,7 +48,7 @@ function mapPrize(prize) {
 
 async function addPrize() {
   if (isSaving.value) return
-  const cleanedName = prizeName.value.trim().replace(/\s+/g, ' ')
+  const cleanedName = prizeName.value.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR')
 
   if (!cleanedName) {
     formMessage.value = 'Informe o nome do prêmio.'

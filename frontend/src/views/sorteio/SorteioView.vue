@@ -1,5 +1,13 @@
 <script setup>
-import { computed, nextTick, onActivated, onDeactivated, onBeforeUnmount, onMounted, ref } from 'vue'
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import {
@@ -12,62 +20,33 @@ import {
 import { listPrizes } from '../../services/prize-service'
 import { listDrawsForDisplay, mapDrawRecord } from '../../services/draw-view-model'
 import { loadEventIndicators } from '../../services/event-indicators'
-import { createProjectionSessionId } from '../../services/projection-session'
 import { RouterLink, useRouter } from 'vue-router'
 import './SorteioView.css'
 import { useLiveRefresh } from '../../services/live-updates'
+import api from '../../services/api'
+import { subscribeProjection } from '../../services/projection-sync'
 
-useLiveRefresh(() => refreshData(true), () => drawing.value || confirming.value || loading.value)
+useLiveRefresh(
+  () => refreshData(),
+  () => drawing.value || confirming.value || loading.value,
+)
 
 const router = useRouter()
 defineOptions({ name: 'SorteioView' })
 let routeActive = true
 onActivated(() => {
   routeActive = true
-  resumeProjection()
 })
 onDeactivated(() => {
   routeActive = false
 })
-const projectionSupported = typeof BroadcastChannel !== 'undefined'
-const projectionSessionKey = 'dia-do-servidor-projection-session'
-const projectionSessionId = sessionStorage.getItem(projectionSessionKey) || createProjectionSessionId()
-sessionStorage.setItem(projectionSessionKey, projectionSessionId)
+const projectionSupported = typeof EventSource !== 'undefined'
 const projectionUrl = router.resolve({
   name: 'telao',
-  query: { session: projectionSessionId },
 }).href
 const projectionLinkVisible = ref(false)
-const projectionChannel = projectionSupported ? new BroadcastChannel('dia-do-servidor-telao') : null
-let projectionChannelActive = true
 let projectionWindow = null
-let projectionHeartbeatInterval
-let projectionClientConnected = false
-
-function handleOperatorPageHide(event) {
-  if (!event?.persisted) announceProjectionDisconnect()
-}
-
-function resumeProjection() {
-  sendProjectionHeartbeat()
-  sendProjectionState(true)
-}
-
-function sendProjectionHeartbeat() {
-  if (!projectionChannel || !projectionChannelActive) return
-  projectionChannel.postMessage({
-    type: 'heartbeat',
-    sessionId: projectionSessionId,
-  })
-}
-
-function announceProjectionDisconnect() {
-  if (!projectionChannel || !projectionChannelActive) return
-  projectionChannel.postMessage({
-    type: 'operator-disconnected',
-    sessionId: projectionSessionId,
-  })
-}
+let stopProjection
 
 const prizes = ref([])
 const indicatorData = ref({
@@ -108,35 +87,16 @@ let celebrationTimeout
 let animationFrame = null
 let animationDeadline
 let finishAnimation = null
-let preparationTimeout
-let preparationDeadline = null
-let acknowledgedWinnerId = null
-const preparationStorageKey = 'dia-do-servidor-preparacao'
+let remoteProjection = null
 
-function schedulePreparation(delay) {
-  window.clearTimeout(preparationTimeout)
-  preparationDeadline = Date.now() + delay
-  try {
-    localStorage.setItem(
-      preparationStorageKey,
-      JSON.stringify({ drawId: latestDraw.value.id, deadline: preparationDeadline }),
-    )
-  } catch {
-    /* A apresentação continua mesmo sem armazenamento disponível. */
-  }
-  preparationTimeout = window.setTimeout(completeAutomaticPreparation, delay)
-}
-
-function completeAutomaticPreparation() {
-  if (!viewActive || projectionPhase.value !== 'winner' || preparationDeadline === null) return
-  if (Date.now() < preparationDeadline || confirming.value || drawing.value) {
-    preparationTimeout = window.setTimeout(
-      completeAutomaticPreparation,
-      Math.max(1, preparationDeadline - Date.now(), confirming.value || drawing.value ? 250 : 0),
-    )
-    return
-  }
-  prepareNextDraw()
+function applyRemoteProjection() {
+  if (!remoteProjection || drawing.value || confirming.value) return
+  const state = remoteProjection
+  const result = state.draw || state.lastDraw
+  if (result) draws.value = [...draws.value.filter((draw) => draw.id !== result.id), result]
+  projectionPhase.value = state.phase
+  activeDrawNumber = state.phase === 'drawing' ? state.drawNumber : null
+  ballNumber.value = state.ballNumber
 }
 
 const canUseDrawShortcut = computed(
@@ -197,81 +157,14 @@ function handleDrawShortcut(event) {
   void confirmDraw()
 }
 
-function sendProjectionState(snapshot = false) {
-  if (!projectionChannel || !projectionChannelActive) return
-
-  const phase = projectionPhase.value
-  const draw = phase === 'winner' || phase === 'preparing' ? latestDraw.value : null
-  const projectionDraw = draw
-    ? {
-        id: draw.id,
-        sorteadoEm: draw.sorteadoEm,
-        numero: draw.numero,
-        participanteId: draw.participanteId,
-        nome: draw.nome,
-        matricula: draw.matricula,
-        origem: draw.origem,
-        localTrabalhoCodigo: draw.localTrabalhoCodigo ?? null,
-        localTrabalhoDescricao: draw.localTrabalhoDescricao ?? null,
-        premioId: draw.premioId,
-        premioNome: draw.premioNome,
-      }
-    : null
-  projectionChannel.postMessage({
-    type: 'state',
-    sessionId: projectionSessionId,
-    phase,
-    snapshot,
-    drawNumber:
-      phase === 'drawing' || phase === 'preparing'
-        ? (activeDrawNumber ?? nextDrawNumber.value)
-        : (latestDraw.value?.numero ?? nextDrawNumber.value),
-    ballNumber:
-      phase === 'drawing'
-        ? ballNumber.value
-        : phase === 'winner'
-          ? latestDraw.value.matricula
-          : '?',
-    ...(phase === 'winner' ? { draw: projectionDraw } : {}),
-    ...(phase === 'preparing' ? { lastDraw: projectionDraw } : {}),
-  })
-}
-
 function openProjection() {
   if (projectionWindow && !projectionWindow.closed) {
     projectionWindow.focus()
     return
   }
 
-  projectionWindow = window.open(projectionUrl, `dia-do-servidor-telao-${projectionSessionId}`)
+  projectionWindow = window.open(projectionUrl, 'dia-do-servidor-telao')
   projectionLinkVisible.value = !projectionWindow
-}
-
-if (projectionChannel) {
-  projectionChannel.onmessage = ({ data }) => {
-    if (data?.sessionId !== projectionSessionId) return
-    if (data?.type === 'snapshot-request' && data.sessionId === projectionSessionId) {
-      projectionClientConnected = true
-      sendProjectionState(true)
-    }
-    if (
-      data?.type === 'winner-visible' &&
-      projectionPhase.value === 'winner' &&
-      data.drawId === latestDraw.value?.id &&
-      acknowledgedWinnerId !== data.drawId
-    ) {
-      acknowledgedWinnerId = data.drawId
-      schedulePreparation(10000)
-    }
-    if (
-      data?.type === 'prepare-request' &&
-      data.drawId === latestDraw.value?.id &&
-      preparationDeadline !== null &&
-      Date.now() >= preparationDeadline
-    ) {
-      completeAutomaticPreparation()
-    }
-  }
 }
 
 const eligibleCount = computed(() => indicatorData.value.elegiveis)
@@ -284,6 +177,7 @@ const canStartDraw = computed(
   () =>
     !loading.value &&
     !loadError.value &&
+    projectionPhase.value !== 'drawing' &&
     (pendingOperation.value ||
       (eligibleCount.value > 0 && (!latestDraw.value || projectionPhase.value === 'preparing'))),
 )
@@ -331,6 +225,7 @@ async function celebrateAll() {
     })
   } finally {
     confirming.value = false
+    applyRemoteProjection()
   }
 }
 
@@ -340,7 +235,7 @@ function clearCelebration() {
   celebrationDraws.value = []
 }
 
-function prepareNextDraw() {
+async function prepareNextDraw() {
   if (
     drawing.value ||
     confirming.value ||
@@ -350,18 +245,17 @@ function prepareNextDraw() {
     return
   }
 
-  projectionPhase.value = 'preparing'
-  window.clearTimeout(preparationTimeout)
-  preparationDeadline = null
   try {
-    localStorage.setItem(
-      preparationStorageKey,
-      JSON.stringify({ drawId: latestDraw.value.id, deadline: 0 }),
-    )
-  } catch {
-    /* Não interfere no histórico nem na API. */
+    await api.post('/projection/prepare')
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível preparar a próxima rodada',
+      text: error.message,
+    })
+    return
   }
-  sendProjectionState()
+  projectionPhase.value = 'preparing'
 }
 
 async function refreshData(recover = false) {
@@ -382,26 +276,6 @@ async function refreshData(recover = false) {
     }))
     if (recover) {
       pendingOperation.value = readPendingDraw()
-      projectionPhase.value = latestDraw.value ? 'winner' : 'ready'
-      ballNumber.value = latestDraw.value?.matricula ?? '?'
-      if (latestDraw.value) {
-        let saved
-        try {
-          saved = JSON.parse(localStorage.getItem(preparationStorageKey))
-        } catch {
-          /* Sem prazo salvo, apenas prepara o resultado recuperado. */
-        }
-        const remaining = saved?.drawId === latestDraw.value.id ? saved.deadline - Date.now() : 0
-        if (remaining > 0) {
-          acknowledgedWinnerId = latestDraw.value.id
-          schedulePreparation(remaining)
-        } else {
-          projectionPhase.value = 'preparing'
-          window.clearTimeout(preparationTimeout)
-          preparationDeadline = null
-        }
-      }
-      sendProjectionState(true)
     }
   } catch (error) {
     loadError.value = error.message
@@ -477,6 +351,7 @@ async function confirmDraw() {
   } finally {
     drawConfirmationOpen = false
     confirming.value = false
+    applyRemoteProjection()
   }
 }
 
@@ -488,8 +363,6 @@ async function animateDraw(draw) {
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const duration = reducedMotion ? 250 : 2800
-
-  sendProjectionState()
 
   if (!reducedMotion) {
     const animationStart = performance.now()
@@ -516,7 +389,6 @@ async function animateDraw(draw) {
           ballNumber.value = [1, 3, 7, 9, 3, 7]
             .map((factor, position) => (step * factor + position * 2) % 10)
             .join('')
-          sendProjectionState()
         }
         animationFrame = window.requestAnimationFrame(animateDigits)
       }
@@ -533,17 +405,6 @@ async function animateDraw(draw) {
   drawing.value = false
   projectionPhase.value = 'winner'
   activeDrawNumber = null
-  acknowledgedWinnerId = null
-  // Sem Telão, o operador também aguarda a revelação e os dez segundos.
-  schedulePreparation(10800)
-  if (
-    (projectionClientConnected && !projectionWindow?.closed) ||
-    (projectionWindow && !projectionWindow.closed)
-  ) {
-    window.clearTimeout(preparationTimeout)
-  }
-
-  sendProjectionState()
 
   window.clearTimeout(confettiTimeout)
   confettiRound.value += 1
@@ -557,18 +418,12 @@ async function animateDraw(draw) {
 
 onBeforeUnmount(() => {
   viewActive = false
+  stopProjection?.()
   window.removeEventListener('keydown', handleDrawShortcut, true)
   window.removeEventListener('keyup', releaseDrawShortcut, true)
-  window.removeEventListener('pagehide', handleOperatorPageHide)
-  window.removeEventListener('pageshow', resumeProjection)
-  window.clearTimeout(preparationTimeout)
   if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
   finishAnimation?.()
   finishAnimation = null
-  announceProjectionDisconnect()
-  window.clearInterval(projectionHeartbeatInterval)
-  projectionChannelActive = false
-  projectionChannel?.close()
   window.clearTimeout(confettiTimeout)
   window.clearTimeout(celebrationTimeout)
 })
@@ -576,14 +431,12 @@ onBeforeUnmount(() => {
 onMounted(async () => {
   window.addEventListener('keydown', handleDrawShortcut, true)
   window.addEventListener('keyup', releaseDrawShortcut, true)
-  window.addEventListener('pagehide', handleOperatorPageHide)
-  window.addEventListener('pageshow', resumeProjection)
-  sendProjectionHeartbeat()
-  projectionHeartbeatInterval = window.setInterval(sendProjectionHeartbeat, 2000)
   await refreshData(true)
   if (!viewActive) return
-  sendProjectionState(true)
-  sendProjectionHeartbeat()
+  stopProjection = subscribeProjection((state) => {
+    remoteProjection = state
+    applyRemoteProjection()
+  })
 })
 </script>
 
