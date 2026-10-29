@@ -243,9 +243,9 @@ import './GuiaView.css'
           </li>
         </ol>
         <p class="guide-rule">
-          Se houver desconexão, mantenha a tela do operador aberta e aguarde a reconexão. Ao
-          recarregar o Telão, ele recupera a apresentação sem sortear novamente. Se reabrir a tela
-          do operador, abra o Telão pelo botão dessa nova tela.
+          Você pode navegar por outras telas ou trocar de aba sem encerrar o Telão. Ele permanece
+          aberto até ser fechado manualmente. Ao retornar à tela Sorteio, a mesma sessão continua;
+          ao recarregar o operador na mesma aba, a sessão é recuperada sem sortear novamente.
         </p>
         <RouterLink class="guide-link" to="/sorteio">
           Abrir Sorteio para usar o Telão

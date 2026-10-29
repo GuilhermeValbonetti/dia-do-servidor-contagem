@@ -43,11 +43,11 @@ Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. O frontend e
 
 - Atualização automática dos dados entre máquinas conectadas ao mesmo backend, sem F5 ou avisos. A conexão `/api/events` reconecta automaticamente após uma queda e recarrega os dados ao reconectar. Formulários e operações em andamento são preservados.
 - Início e Sidebar: indicadores e últimos vencedores consultados na API.
-- Credenciamento: busca, filtros de presença, paginação e registro do horário das confirmações.
+- Credenciamento: busca, filtro separado de Prefeitura/Câmara combinável com os filtros de presença, paginação e registro do horário das confirmações.
 - Prêmios: cadastro, controle de estoque, exclusão individual e exclusão em lote.
 - Sorteio: seleção exclusivamente pelo back-end entre participantes elegíveis; sessão de sorteio e prêmio opcional. A recuperação da confirmação usa o ID da sessão mantido no navegador.
 - Espaço: inicia o fluxo do botão, com confirmação no modal; não atua em campos, controles, modais ou rodada em andamento.
-- Telão: sessão sincronizada, animação visual, resultado confirmado pela API, confetes e recuperação sem novo sorteio.
+- Telão: sessão sincronizada mantida ao navegar ou trocar de aba, fechamento somente manual, animação visual, resultado confirmado pela API, confetes e recuperação sem novo sorteio.
 - Vencedores: histórico paginado, celebrações e reinicialização dos sorteios, presenças e estoques para reutilizar o sistema.
 - Guia: instruções de uso no próprio sistema.
 

@@ -23,7 +23,6 @@ const confettiRound = ref(0)
 const fullscreen = ref(false)
 const statusMessage = ref('')
 const connectionLost = ref(false)
-const sessionEnded = ref(false)
 const suppressEntrance = ref(false)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let confettiTimeout
@@ -39,7 +38,6 @@ let acknowledgedWinnerId = null
 const verifiedDraws = new Map()
 
 const connectionTimeout = 70000
-let disconnectDeadline = null
 const connectionCheckFrequency = 1000
 
 const confettiPieces = ref([])
@@ -113,20 +111,19 @@ function startDigits() {
 }
 
 async function handleProjectionMessage({ data }) {
-  if (sessionEnded.value || data?.sessionId !== projectionSessionId) return
+  if (data?.sessionId !== projectionSessionId) return
 
   if (data.type === 'heartbeat') {
     const wasDisconnected = connectionLost.value
     lastOperatorMessageAt = Date.now()
     connectionLost.value = false
-    disconnectDeadline = null
     if (wasDisconnected || awaitingApiSync) requestSnapshot()
     return
   }
 
   if (data.type === 'operator-disconnected') {
-    markConnectionLost()
-    disconnectDeadline = Date.now() + 3000
+    // Preserva a apresentação enquanto o operador navega ou recarrega a página.
+    requestSnapshot()
     return
   }
 
@@ -140,7 +137,6 @@ async function handleProjectionMessage({ data }) {
 
   lastOperatorMessageAt = Date.now()
   connectionLost.value = false
-  disconnectDeadline = null
   if (
     data.phase === 'drawing' &&
     phase.value === 'drawing' &&
@@ -246,51 +242,10 @@ async function handleProjectionMessage({ data }) {
   }
 }
 
-function endOperatorSession() {
-  if (sessionEnded.value) return
-  markConnectionLost()
-  sessionEnded.value = true
-  messageRevision += 1
-  lastWinner.value = null
-  statusMessage.value = 'A conexão com o operador foi encerrada. Você pode fechar esta janela.'
-  window.clearInterval(connectionCheckInterval)
-  projectionChannel?.close()
-  try {
-    window.close()
-  } catch {
-    // O aviso permanece visível quando o navegador impede o fechamento.
-  }
-}
-
 function checkOperatorConnection() {
-  if (sessionEnded.value) return
-  // Uma janela viva pode ter seus timers suspensos. Silêncio não prova encerramento.
-  if (window.opener?.closed && disconnectDeadline === null) {
-    markConnectionLost()
-    disconnectDeadline = Date.now() + 3000
-  }
+  // A ausência do operador não encerra nem limpa o telão.
   const silence = Date.now() - lastOperatorMessageAt
-  if (disconnectDeadline !== null && Date.now() >= disconnectDeadline) {
-    endOperatorSession()
-  } else if (silence >= connectionTimeout) {
-    if (!window.opener || window.opener.closed) markConnectionLost()
-    requestSnapshot()
-  }
-}
-
-function markConnectionLost() {
-  if (connectionLost.value) return
-  connectionLost.value = true
-  stopDigits()
-  messageRevision += 1
-  phase.value = 'disconnected'
-  winner.value = null
-  ballNumber.value = '?'
-  window.clearTimeout(confettiTimeout)
-  window.clearTimeout(winnerVisibleTimeout)
-  window.clearTimeout(preparationRequestTimeout)
-  showConfetti.value = false
-  recoverLastDraw()
+  if (silence >= connectionTimeout) requestSnapshot()
 }
 
 async function recoverLastDraw() {
@@ -299,14 +254,13 @@ async function recoverLastDraw() {
     const history = await listDrawsForDisplay()
     if (
       viewActive &&
-      !sessionEnded.value &&
       revision === messageRevision &&
       phase.value === 'disconnected'
     ) {
       lastWinner.value = history[0] ?? null
     }
   } catch {
-    if (viewActive && !sessionEnded.value && revision === messageRevision)
+    if (viewActive && revision === messageRevision)
       statusMessage.value = 'Não foi possível recuperar o último sorteio na API.'
   }
 }
@@ -368,12 +322,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section v-if="sessionEnded" class="projection-screen phase-disconnected" role="status">
-    <h1>Conexão com o operador encerrada</h1>
-    <p>{{ statusMessage }}</p>
-  </section>
   <section
-    v-else
     ref="projectionScreen"
     class="projection-screen"
     :class="[`phase-${phase}`, { 'is-snapshot': suppressEntrance }]"

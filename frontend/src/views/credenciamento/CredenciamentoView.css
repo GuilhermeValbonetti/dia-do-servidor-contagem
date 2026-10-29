@@ -689,6 +689,26 @@
   border-radius: 12px;
 }
 
+.checkin-agency-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #40546b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.checkin-agency-filter select {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d5dee8;
+  border-radius: 8px;
+  background: #fff;
+  color: #243b53;
+  font: inherit;
+}
+
 .checkin-filter {
   display: flex;
   align-items: center;
@@ -932,6 +952,10 @@
   .checkin-directory-tools {
     grid-template-columns: minmax(220px, 1fr) auto;
     align-items: center;
+  }
+
+  .checkin-directory-tools > .checkin-filter {
+    grid-column: 1 / -1;
   }
 
   .checkin-participant-action .checkin-button {

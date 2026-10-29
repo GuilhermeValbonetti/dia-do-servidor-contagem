@@ -47,6 +47,7 @@ const indicatorsError = ref('')
 const indicatorsLoaded = ref(false)
 const directorySearch = ref('')
 const activeFilter = ref('all')
+const agencyFilter = ref('')
 const currentPage = ref(1)
 const pageSize = 10
 const totalPages = ref(0)
@@ -101,16 +102,6 @@ async function loadDirectory(page = currentPage.value) {
 
   try {
     const search = directorySearch.value.trim()
-    const normalizedSearch = search
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-    const publicAgency = normalizedSearch.includes('camara')
-      ? 'CAMARA'
-      : normalizedSearch.includes('prefeitura')
-        ? 'PREFEITURA'
-        : undefined
-    const requestSearch = publicAgency ? '' : search
     const filters = {
       present:
         activeFilter.value === 'pending'
@@ -118,8 +109,8 @@ async function loadDirectory(page = currentPage.value) {
           : ['confirmed', 'winner'].includes(activeFilter.value)
             ? true
             : undefined,
-      publicAgency,
-      search: requestSearch || undefined,
+      publicAgency: agencyFilter.value || undefined,
+      search: search || undefined,
     }
     const fetchPage = (pageNumber, limit) =>
       listParticipants({ ...filters, page: pageNumber, pageSize: limit })
@@ -215,7 +206,7 @@ function formatConfirmation(value) {
   }).format(new Date(value))
 }
 
-watch([directorySearch, activeFilter], () => {
+watch([directorySearch, activeFilter, agencyFilter], () => {
   clearTimeout(searchTimer)
   // Invalida respostas anteriores assim que o filtro muda.
   directoryRequest += 1
@@ -444,15 +435,23 @@ onMounted(refreshData)
             <label class="checkin-directory-search">
               <svg class="checkin-icon" aria-hidden="true"><use href="#checkin-search" /></svg>
               <span class="checkin-sr-only">
-                Buscar na base por nome, matrícula ou instituição</span
+                Buscar na base por nome ou matrícula</span
               >
               <input
                 v-model="directorySearch"
                 type="search"
                 autocomplete="off"
-                placeholder="Buscar na base por nome, matrícula ou instituição..."
+                placeholder="Buscar na base por nome ou matrícula..."
                 maxlength="200"
               />
+            </label>
+            <label class="checkin-agency-filter">
+              Instituição
+              <select v-model="agencyFilter">
+                <option value="">Todas as instituições</option>
+                <option value="PREFEITURA">Prefeitura</option>
+                <option value="CAMARA">Câmara</option>
+              </select>
             </label>
             <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
               <button

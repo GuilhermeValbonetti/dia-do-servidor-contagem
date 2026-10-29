@@ -9,7 +9,11 @@ const route = useRoute()
   <div class="app-shell" :class="{ 'app-shell--telao': route.path === '/telao' }">
     <Sidebar v-if="route.path !== '/telao'" />
     <main class="main-content">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <KeepAlive include="SorteioView">
+          <component :is="Component" />
+        </KeepAlive>
+      </RouterView>
     </main>
   </div>
 </template>

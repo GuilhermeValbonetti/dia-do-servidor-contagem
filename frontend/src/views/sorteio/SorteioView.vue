@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onBeforeUnmount, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import {
@@ -20,8 +20,19 @@ import { useLiveRefresh } from '../../services/live-updates'
 useLiveRefresh(() => refreshData(true), () => drawing.value || confirming.value || loading.value)
 
 const router = useRouter()
+defineOptions({ name: 'SorteioView' })
+let routeActive = true
+onActivated(() => {
+  routeActive = true
+  resumeProjection()
+})
+onDeactivated(() => {
+  routeActive = false
+})
 const projectionSupported = typeof BroadcastChannel !== 'undefined'
-const projectionSessionId = createProjectionSessionId()
+const projectionSessionKey = 'dia-do-servidor-projection-session'
+const projectionSessionId = sessionStorage.getItem(projectionSessionKey) || createProjectionSessionId()
+sessionStorage.setItem(projectionSessionKey, projectionSessionId)
 const projectionUrl = router.resolve({
   name: 'telao',
   query: { session: projectionSessionId },
@@ -153,7 +164,8 @@ function handleDrawShortcut(event) {
     event.ctrlKey ||
     event.metaKey ||
     event.shiftKey ||
-    !viewActive
+    !viewActive ||
+    !routeActive
   )
     return
   if (drawConfirmationOpen) {
