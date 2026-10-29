@@ -11,6 +11,9 @@ import {
   removePrizeQuantity,
 } from '../../services/prize-service'
 import './PremiosView.css'
+import { useLiveRefresh } from '../../services/live-updates'
+
+useLiveRefresh(() => loadPrizes(), () => isSaving.value || loading.value)
 
 const prizes = ref([])
 const prizeName = ref('')

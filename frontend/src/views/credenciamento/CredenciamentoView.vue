@@ -10,6 +10,9 @@ import {
 } from '../../services/participant-service'
 import { loadEventIndicators } from '../../services/event-indicators'
 import './CredenciamentoView.css'
+import { useLiveRefresh } from '../../services/live-updates'
+
+useLiveRefresh(() => refreshData(), () => isSaving.value || loading.value)
 
 const participants = ref([])
 const environmentLabel = ref('AMBIENTE NÃO CONFIRMADO')

@@ -5,6 +5,9 @@ import 'sweetalert2/dist/sweetalert2.min.css'
 import { listDrawsForDisplay } from '../../services/draw-view-model'
 import { resetDrawHistory } from '../../services/draw-sevice'
 import './VencedoresView.css'
+import { useLiveRefresh } from '../../services/live-updates'
+
+useLiveRefresh(() => loadWinners(), () => resettingWinners.value || loading.value)
 
 const winners = ref([])
 const latestWinners = ref([])

@@ -10,6 +10,7 @@ import notFoundHandler from './middlewares/not-found-handler.js';
 import participantsRoutes from './routes/participants.routes.js';
 import prizesRoutes from './routes/prizes.routes.js';
 import drawsRoutes from './routes/draws.routes.js';
+import { publishUpdates, subscribeToUpdates } from './middlewares/live-updates.js';
 
 const app = express();
 
@@ -19,7 +20,9 @@ app.use(morgan('dev'));
 
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+    origin: process.env.CLIENT_ORIGIN
+      ? process.env.CLIENT_ORIGIN.split(',').map((origin) => origin.trim())
+      : false,
   }),
 );
 
@@ -32,6 +35,8 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Rotas da API
+app.get('/api/events', subscribeToUpdates);
+app.use('/api', publishUpdates);
 app.use('/api/participants', participantsRoutes);
 app.use('/api/prizes', prizesRoutes);
 app.use('/api/draws', drawsRoutes);

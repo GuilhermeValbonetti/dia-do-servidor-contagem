@@ -12,12 +12,16 @@ import {
 import { listPrizes } from '../../services/prize-service'
 import { listDrawsForDisplay, mapDrawRecord } from '../../services/draw-view-model'
 import { loadEventIndicators } from '../../services/event-indicators'
+import { createProjectionSessionId } from '../../services/projection-session'
 import { RouterLink, useRouter } from 'vue-router'
 import './SorteioView.css'
+import { useLiveRefresh } from '../../services/live-updates'
+
+useLiveRefresh(() => refreshData(true), () => drawing.value || confirming.value || loading.value)
 
 const router = useRouter()
 const projectionSupported = typeof BroadcastChannel !== 'undefined'
-const projectionSessionId = crypto.randomUUID()
+const projectionSessionId = createProjectionSessionId()
 const projectionUrl = router.resolve({
   name: 'telao',
   query: { session: projectionSessionId },

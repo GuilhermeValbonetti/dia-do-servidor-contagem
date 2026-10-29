@@ -4,6 +4,9 @@ import { useRoute } from 'vue-router'
 import { listDrawsForDisplay } from '../../services/draw-view-model'
 import brasao from '../../assets/images/brasao-contagem.png'
 import './TelaoView.css'
+import { useLiveRefresh } from '../../services/live-updates'
+
+useLiveRefresh(() => recoverLastDraw())
 
 const route = useRoute()
 const projectionSessionId = typeof route.query.session === 'string' ? route.query.session : null

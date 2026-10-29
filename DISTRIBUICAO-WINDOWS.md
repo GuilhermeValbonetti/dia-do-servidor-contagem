@@ -54,15 +54,15 @@ Mantenha juntos o `DiaDoServidor.exe`, a pasta `runtime`, a pasta `server` e a p
 
 O SQLite fica fora da pasta do programa em `%LOCALAPPDATA%\DiaDoServidor\data\sorteio.db`. Atualizar os arquivos do programa não substitui esse banco. Antes de trocar de versão, feche o navegador e encerre o processo Node do Dia do Servidor no Gerenciador de Tarefas. Faça uma cópia do banco antes de atualizar. Depois, substitua a pasta do programa sem alterar a pasta de dados; a nova versão aplica as migrações ao iniciar.
 
-Fechar o navegador não encerra a API local. O servidor continua em segundo plano até o Windows ser desligado ou o processo Node ser encerrado. Se a porta local 3001 estiver ocupada, o inicializador informa que a API não ficou disponível; libere a porta ou altere a porta em conjunto com o inicializador antes de empacotar novamente.
+Fechar o navegador não encerra a API local. O servidor continua em segundo plano até o Windows ser desligado ou o processo Node ser encerrado. Se a porta local 8080 estiver ocupada, o inicializador informa que a API não ficou disponível; libere a porta ou altere a porta em conjunto com o inicializador antes de empacotar novamente.
 
 ## Operação e validação
 
-O pacote trabalha localmente e não precisa de internet após ser criado. O computador do operador e o telão devem usar o mesmo endereço e a mesma origem do navegador para que `BroadcastChannel` sincronize as janelas. Como a API escuta somente em `127.0.0.1`, esse modo é destinado ao operador e ao telão no mesmo computador; não disponibiliza a API para outros computadores da rede.
+O pacote trabalha localmente e não precisa de internet após ser criado. O computador do operador e o telão devem usar o mesmo endereço e a mesma origem do navegador para que `BroadcastChannel` sincronize as janelas. A API escuta em `0.0.0.0`; outros computadores da rede podem acessar a aplicação em `http://IP-DO-SERVIDOR:8080`. A sincronização por `BroadcastChannel` continua limitada às janelas do mesmo navegador e computador.
 
 Teste o pacote extraído antes do evento:
 
-- abra o atalho duas vezes e confirme que apenas uma API responde em `http://127.0.0.1:3001/api/health`;
+- abra o atalho duas vezes e confirme que apenas uma API responde em `http://127.0.0.1:8080/api/health`;
 - abra o painel e `/telao` em janelas do mesmo navegador e valide a sincronização de um sorteio;
 - confirme uma presença e crie um sorteio de teste;
 - feche o navegador, abra novamente o atalho e confira que o serviço existente é reutilizado;
@@ -72,7 +72,7 @@ O pacote atual é x64 e não é assinado digitalmente. O Windows pode exibir um 
 
 ## Desenvolvimento local
 
-O Vite encaminha `/api` para `http://127.0.0.1:3001` por padrão. Inicie os processos em dois terminais:
+O Vite encaminha `/api` para `http://127.0.0.1:8080` por padrão. Inicie os processos em dois terminais:
 
 ```powershell
 cd server

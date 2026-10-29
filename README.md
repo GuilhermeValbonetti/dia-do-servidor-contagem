@@ -19,7 +19,9 @@ cd ..\frontend
 npm.cmd ci
 ```
 
-No desenvolvimento, o servidor usa `DATABASE_URL` (padrão `file:./data/sorteio.db`) e `PORT` (padrão `3001`). No pacote Windows, o banco fica em `%LOCALAPPDATA%\DiaDoServidor\data\sorteio.db`, separado dos arquivos atualizáveis do programa. O proxy padrão do Vite já aponta para a porta `3001`; ajuste `VITE_API_PROXY_TARGET` em `frontend/.env.local` somente se alterar essa porta.
+No desenvolvimento, o servidor usa `DATABASE_URL` (padrão `file:./data/sorteio.db`) e `PORT` (padrão `8080`). No pacote Windows, o banco fica em `%LOCALAPPDATA%\DiaDoServidor\data\sorteio.db`, separado dos arquivos atualizáveis do programa. O proxy padrão do Vite já aponta para a porta `8080`; ajuste `VITE_API_PROXY_TARGET` em `frontend/.env.local` somente se alterar essa porta.
+
+O backend aceita `HOST` (padrão `0.0.0.0`). O arquivo `server/.env.example` mostra as opções disponíveis. O frontend usa `/api` na mesma origem, pelo proxy do Vite; para clientes web que chamem a porta `8080` diretamente, configure `CLIENT_ORIGIN` com as origens permitidas, separadas por vírgula. O preview do frontend também aceita acesso pela rede, na porta `4173`, e utiliza o mesmo proxy.
 
 Em um terminal na pasta `server`:
 
@@ -35,10 +37,11 @@ Copy-Item .env.example .env.local
 npm.cmd run dev
 ```
 
-Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. A API escuta em `127.0.0.1`; o Vite encaminha as chamadas `/api` ao endereço configurado no proxy.
+Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. O frontend e a API escutam em `0.0.0.0`, permitindo acesso pela rede. Em outro computador na mesma rede, abra `http://IP-DO-SERVIDOR:5173`; a API responde em `http://IP-DO-SERVIDOR:8080/api/health`. O Vite encaminha `/api` para `http://127.0.0.1:8080` no computador servidor, sem depender do IP da rede. Se o Windows solicitar, permita Node.js no firewall para a rede utilizada.
 
 ## Funcionalidades implementadas
 
+- Atualização automática dos dados entre máquinas conectadas ao mesmo backend, sem F5 ou avisos. A conexão `/api/events` reconecta automaticamente após uma queda e recarrega os dados ao reconectar. Formulários e operações em andamento são preservados.
 - Início e Sidebar: indicadores e últimos vencedores consultados na API.
 - Credenciamento: busca, filtros de presença, paginação e registro do horário das confirmações.
 - Prêmios: cadastro, controle de estoque, exclusão individual e exclusão em lote.
