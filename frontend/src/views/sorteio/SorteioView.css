@@ -1111,6 +1111,33 @@
   color: #263b55;
 }
 
+/* Exibição do ganhador no palco principal */
+.draw-stage.has-winner .draw-stage-caption,
+.draw-stage.has-winner .draw-stage-subtitle,
+.draw-stage.has-winner .draw-stage-prize {
+  text-transform: uppercase;
+}
+
+/* Card com os dados do último ganhador */
+.draw-winner-result .draw-winner-name,
+.draw-winner-result .draw-winner-meta,
+.draw-winner-result .draw-winner-prize {
+  text-transform: uppercase;
+}
+
+/* Modal de celebração individual */
+.draw-celebration-dialog .draw-celebration-name,
+.draw-celebration-dialog .draw-celebration-meta,
+.draw-celebration-dialog .draw-celebration-prize {
+  text-transform: uppercase;
+}
+
+/* Modal de celebração coletiva */
+.draw-collective-card strong,
+.draw-collective-card span {
+  text-transform: uppercase;
+}
+
 @keyframes draw-ring-turn {
   to {
     transform: rotate(360deg);
