@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { loadEventIndicators } from '../services/evento'
+import { loadEventIndicators } from '../services/event-indicators'
 import crestUrl from '../assets/images/brasao-contagem.png'
 
 defineOptions({ name: 'AppSidebar' })

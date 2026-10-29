@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { loadEventIndicators } from '../../services/evento'
-import { requestDrawApi } from '../../services/sorteios'
+import { loadEventIndicators } from '../../services/event-indicators'
+import { listDrawsForDisplay } from '../../services/draw-view-model'
 import crestUrl from '../../assets/images/brasao-contagem.png'
 import './InicioView.css'
 
@@ -41,33 +41,9 @@ async function refreshHistory() {
   historyLoading.value = true
   historyError.value = ''
   try {
-    const data = await requestDrawApi('/api/sorteios?limit=6')
-    if (
-      !Array.isArray(data?.dados) ||
-      data.dados.length > 6 ||
-      !Number.isSafeInteger(data?.paginacao?.total) ||
-      data.paginacao.total < data.dados.length ||
-      new Set(data.dados.map((draw) => draw?.id)).size !== data.dados.length ||
-      !data.dados.every(
-        (draw) =>
-          draw &&
-          Number.isSafeInteger(draw.id) &&
-          draw.id > 0 &&
-          Number.isSafeInteger(draw.numero) &&
-          draw.numero > 0 &&
-          typeof draw.nome === 'string' &&
-          draw.nome.trim() &&
-          typeof draw.matricula === 'string' &&
-          ['camara', 'prefeitura'].includes(draw.origem) &&
-          typeof draw.sorteadoEm === 'string' &&
-          Number.isFinite(Date.parse(draw.sorteadoEm)) &&
-          (draw.premioNome === null || typeof draw.premioNome === 'string'),
-      )
-    ) {
-      throw new Error('A API retornou um histórico inválido.')
-    }
+    const data = await listDrawsForDisplay()
     if (!viewActive || revision !== historyRevision) return
-    winners.value = data.dados.map((draw) => ({
+    winners.value = data.slice(0, 6).map((draw) => ({
       id: draw.id,
       order: draw.numero,
       name: draw.nome,
@@ -80,7 +56,7 @@ async function refreshHistory() {
       prize: draw.premioNome ?? 'Sorteio sem prêmio associado',
       drawnAt: draw.sorteadoEm,
     }))
-    historyTotal.value = data.paginacao.total
+    historyTotal.value = data.length
   } catch {
     if (viewActive && revision === historyRevision)
       historyError.value =

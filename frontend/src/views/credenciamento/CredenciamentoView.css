@@ -943,14 +943,14 @@
   .checkin-view {
     padding: 34px 30px 65px;
   }
+}
 
+@media (min-width: 1150px) {
   .checkin-layout {
     grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
     align-items: start;
   }
-}
 
-@media (min-width: 1150px) {
   .checkin-view {
     padding: 39px 45px 70px;
   }

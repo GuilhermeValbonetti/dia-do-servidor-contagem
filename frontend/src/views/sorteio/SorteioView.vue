@@ -3,11 +3,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import {
-  requestDrawApi,
+  startDrawSession,
+  completeDrawSession,
   readPendingDraw,
   clearPendingDraw,
   pendingDrawKey,
-} from '../../services/sorteios'
+} from '../../services/draw-sevice'
+import { listPrizes } from '../../services/prize-service'
+import { listDrawsForDisplay, mapDrawRecord } from '../../services/draw-view-model'
+import { loadEventIndicators } from '../../services/event-indicators'
 import { RouterLink, useRouter } from 'vue-router'
 import './SorteioView.css'
 
@@ -301,15 +305,7 @@ async function celebrateAll() {
   if (confirming.value || drawing.value) return
   confirming.value = true
   try {
-    const results = []
-    let page = 1
-    let pages = 1
-    do {
-      const history = await requestDrawApi(`/api/sorteios?limit=100&page=${page}`)
-      results.push(...history.dados)
-      pages = history.paginacao.paginas
-      page += 1
-    } while (page <= pages)
+    const results = await listDrawsForDisplay()
     if (viewActive) await celebrate(results)
   } catch (error) {
     await Swal.fire({
@@ -356,30 +352,20 @@ async function refreshData(recover = false) {
   loading.value = true
   loadError.value = ''
   try {
-    const [history, prizeData] = await Promise.all([
-      requestDrawApi('/api/sorteios?limit=100'),
-      requestDrawApi('/api/premios'),
+    const [history, prizeData, indicators] = await Promise.all([
+      listDrawsForDisplay(),
+      listPrizes(),
+      loadEventIndicators(true),
     ])
-    indicatorData.value = history.indicadores
-    prizes.value = prizeData.dados
+    draws.value = history.reverse()
+    indicatorData.value = indicators
+    prizes.value = prizeData.map((prize) => ({
+      ...prize,
+      nome: prize.name,
+      utilizado: prize.quantityAvailable < prize.quantityTotal,
+    }))
     if (recover) {
-      draws.value = [...history.dados].reverse()
       pendingOperation.value = readPendingDraw()
-      if (pendingOperation.value) {
-        const operation = pendingOperation.value
-        const found = await requestDrawApi(
-          `/api/sorteios?chave=${encodeURIComponent(operation.chave)}`,
-        )
-        if (found.dados.length) {
-          const recovered = found.dados[0]
-          if (!latestDraw.value || recovered.numero > latestDraw.value.numero) {
-            draws.value.push(recovered)
-          }
-          indicatorData.value = found.indicadores
-          clearPendingDraw(operation.chave)
-          pendingOperation.value = null
-        }
-      }
       projectionPhase.value = latestDraw.value ? 'winner' : 'ready'
       ballNumber.value = latestDraw.value?.matricula ?? '?'
       if (latestDraw.value) {
@@ -435,30 +421,28 @@ async function confirmDraw() {
     })
     drawConfirmationOpen = false
     if (!result.isConfirmed || !viewActive) return
-    const operation = pendingOperation.value ?? {
-      chave: crypto.randomUUID(),
-      numeroEsperado: nextDrawNumber.value,
-      premioId: selectedPrizeId.value || null,
+    let operation = pendingOperation.value
+    if (!operation) {
+      const session = await startDrawSession(
+        selectedPrizeId.value ? Number(selectedPrizeId.value) : undefined,
+      )
+      operation = { id: session.id, prizeId: session.prizeId }
+      localStorage.setItem(pendingDrawKey, JSON.stringify(operation))
+      pendingOperation.value = operation
     }
-    // Persiste antes do POST para sobreviver a recargas e respostas perdidas.
-    localStorage.setItem(pendingDrawKey, JSON.stringify(operation))
-    pendingOperation.value = operation
-    let draw
+
+    let drawResult
     try {
-      draw = await requestDrawApi('/api/sorteios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(operation),
-      })
+      drawResult = await completeDrawSession(operation.id)
     } catch (error) {
       if ([400, 404, 409].includes(error.status)) {
-        clearPendingDraw(operation.chave)
+        clearPendingDraw(operation.id)
         pendingOperation.value = null
       }
       throw error
     }
-    // Uma falha ao limpar o armazenamento nunca deve provocar outro POST.
-    clearPendingDraw(operation.chave)
+    const draw = mapDrawRecord(drawResult, nextDrawNumber.value)
+    clearPendingDraw(operation.id)
     pendingOperation.value = null
     if (!viewActive) return
     await animateDraw(draw)

@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum PublicAgency {
+  PREFEITURA
+  CAMARA
+}
+
+model Participant {
+  id                  Int          @id @default(autoincrement())
+  name                String
+  registrationNumber  String?
+  cpf                 String?      @unique
+  publicAgency        PublicAgency
+  department          String?
+  present             Boolean      @default(false)
+  confirmedAt         DateTime?
+  participationNumber Int?         @unique
+  createdAt           DateTime     @default(now())
+
+  draw Draw?
+
+  @@unique([publicAgency, registrationNumber])
+  @@index([present, confirmedAt])
+  @@index([name])
+  @@map("participants")
+}
+
+model Prize {
+  id                Int      @id @default(autoincrement())
+  name              String
+  description       String?
+  quantityTotal     Int
+  quantityAvailable Int
+  createdAt         DateTime @default(now())
+
+  draws Draw[]
+
+  @@map("prizes")
+}
+
+model Draw {
+  id            Int      @id @default(autoincrement())
+  participantId Int      @unique
+  prizeId       Int?
+  drawnAt       DateTime @default(now())
+
+  participant Participant @relation(fields: [participantId], references: [id])
+  prize       Prize?      @relation(fields: [prizeId], references: [id])
+
+  @@index([prizeId])
+  @@map("draws")
+}

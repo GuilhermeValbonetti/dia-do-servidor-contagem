@@ -1,4 +1,7 @@
 node_modules/
+/release/
+**/bin/
+**/obj/
 .env
 !.env.example
 arquivos funcionarios/

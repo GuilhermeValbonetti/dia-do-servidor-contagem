@@ -1,78 +1,63 @@
 # Dia do Servidor — Prefeitura Municipal de Contagem/MG
 
-Sistema local de credenciamento, prêmios, sorteios e apresentação de vencedores em projetor. Vue 3 + Vite, Node.js + Express e SQLite com better-sqlite3.
+Sistema local de credenciamento, prêmios, sorteios e apresentação de vencedores em projetor. Vue 3 + Vite no frontend; Express, TypeScript, Prisma e SQLite no backend em `server`.
 
 Desenvolvimento concluído, sujeito à homologação presencial no notebook e projetor do evento.
 
 ## Instalação e operação
 
-Siga [INSTALACAO-EVENTO.md](INSTALACAO-EVENTO.md) para preparar um Windows novo, transferir os bancos, simular, fazer backups e recuperar operações.
+O guia [DISTRIBUICAO-WINDOWS.md](DISTRIBUICAO-WINDOWS.md) explica como compilar e empacotar o inicializador Windows, incluindo runtime Node.js, frontend e API. O documento [INSTALACAO-EVENTO.md](INSTALACAO-EVENTO.md) descreve uma implementação antiga em `backend` e não deve ser usado para configurar a versão atual.
 
-Versão utilizada na validação: **Node.js 26.7.0**, com npm. Instale e execute com a mesma versão; o módulo SQLite é nativo. Não copie node_modules de outro computador.
+Para desenvolvimento e build, use Node.js **22.18 ou superior da linha 22, ou 24.12 ou superior**. O módulo SQLite é nativo; instale as dependências no mesmo computador em que fará o build.
 
 Após clonar, instale as dependências:
 
 ```powershell
-cd backend
+cd server
 npm.cmd ci
-cd ../frontend
+cd ..\frontend
 npm.cmd ci
 ```
 
-Os bancos não vêm no Git. Transfira os três SQLite validados para `backend/data/`, conforme o manual. A inicialização normal exige arquivo existente, tabelas essenciais e servidores cadastrados; não cria ou repara bancos.
+No desenvolvimento, o servidor usa `DATABASE_URL` (padrão `file:./data/sorteio.db`) e `PORT` (padrão `3001`). No pacote Windows, o banco fica em `%LOCALAPPDATA%\DiaDoServidor\data\sorteio.db`, separado dos arquivos atualizáveis do programa. O proxy padrão do Vite já aponta para a porta `3001`; ajuste `VITE_API_PROXY_TARGET` em `frontend/.env.local` somente se alterar essa porta.
 
-Em um terminal na pasta `backend`:
-
-```powershell
-$env:DB_PATH = './data/dia-do-servidor.sqlite'
-$env:PORT = '3000'
-npm.cmd start
-```
-
-Em outro terminal na pasta `frontend`:
+Em um terminal na pasta `server`:
 
 ```powershell
 npm.cmd run dev
 ```
 
-Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. Confira **Banco OFICIAL** e o caminho no terminal da API. `GET /api/health` retorna `status`, `database` e `ambiente`, sem caminhos locais. O Credenciamento distingue a base oficial do ambiente de testes.
+Em outro terminal, configure o proxy (se necessário) e inicie o frontend:
+
+```powershell
+cd frontend
+Copy-Item .env.example .env.local
+npm.cmd run dev
+```
+
+Abra a URL mostrada pelo Vite, normalmente `http://localhost:5173`. A API escuta em `127.0.0.1`; o Vite encaminha as chamadas `/api` ao endereço configurado no proxy.
 
 ## Funcionalidades implementadas
 
-- Início e Sidebar: indicadores reais e últimos vencedores.
-- Credenciamento: matrícula exata, instituição, local de trabalho, busca por nome, filtros globais e paginação. CPF não está disponível. Presença duplicada é bloqueada; presença de vencedor não pode ser desfeita.
-- Prêmios: cadastro, listagem e exclusão somente de unidades disponíveis.
-- Sorteio: seleção exclusivamente pelo back-end entre presentes ainda não contemplados, prêmio opcional, transação e idempotência persistente. Resultados definitivos.
+- Início e Sidebar: indicadores e últimos vencedores consultados na API.
+- Credenciamento: busca, filtros de presença, paginação e registro do horário das confirmações.
+- Prêmios: cadastro, controle de estoque, exclusão individual e exclusão em lote.
+- Sorteio: seleção exclusivamente pelo back-end entre participantes elegíveis; sessão de sorteio e prêmio opcional. A recuperação da confirmação usa o ID da sessão mantido no navegador.
 - Espaço: inicia o fluxo do botão, com confirmação no modal; não atua em campos, controles, modais ou rodada em andamento.
 - Telão: sessão sincronizada, animação visual, resultado confirmado pela API, confetes e recuperação sem novo sorteio.
-- Vencedores: histórico paginado e celebrações que apenas reapresentam resultados.
+- Vencedores: histórico paginado, celebrações e reinicialização dos sorteios, presenças e estoques para reutilizar o sistema.
 - Guia: instruções de uso no próprio sistema.
-
-## Ambiente de testes
-
-Encerre a API anterior e execute em `backend`:
-
-```powershell
-npm.cmd run dev:teste
-```
-
-Esse script força o banco de testes, verifica isolamento e usa bloqueio contra reset concorrente. Confira **Banco TESTES** no terminal e **AMBIENTE DE TESTES** no Credenciamento antes de simular. Mantenha apenas uma API na porta 3000.
-
-`npm.cmd run reset:teste` restaura exclusivamente testes a partir da base limpa protegida. Apaga operações de testes: só use quando solicitado, após backup e com a API de testes encerrada. Não faz parte da instalação ou operação do evento.
 
 ## Qualidade
 
 ```powershell
 # backend
-npm.cmd test
+cd server
+npm.cmd run type-check
 
 # frontend
+cd ..\frontend
 npm.cmd run build
-node node_modules/eslint/bin/eslint.js .
-node node_modules/oxlint/bin/oxlint .
-node node_modules/prettier/bin/prettier.cjs --check src/
 ```
 
-Testes com escrita usam bancos descartáveis. `npm run lint` e `npm run format` fazem correções automáticas; os comandos acima apenas verificam o código.
-
-Consulte [contratos e recuperação](backend/SORTEIOS.md) e o [histórico dos locais de trabalho](backend/PLANO-LOCAL-DE-TRABALHO.md). Importação, migração e reset não fazem parte da operação do evento. Preserve bancos, backups e documentos pessoais fora do Git.
+As rotas implementadas estão em `server/src/routes`. A API não identifica se a base é oficial ou de testes; o pacote Windows usa um único banco local persistente por usuário.

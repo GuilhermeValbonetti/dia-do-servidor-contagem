@@ -1,5 +1,7 @@
 # Instalação e operação no Windows
 
+> Este manual descreve a implementação removida em `backend/`; os comandos, bancos e modos oficial/teste abaixo não se aplicam ao backend atual em `server/`. Use o início rápido do [README](README.md) e confirme com o responsável técnico o banco correto antes de operar.
+
 Sistema Dia do Servidor — Prefeitura Municipal de Contagem/MG. A instalação de dependências requer internet; a operação usa serviços e arquivos locais em um notebook conectado ao projetor.
 
 ## Preparar um notebook novo

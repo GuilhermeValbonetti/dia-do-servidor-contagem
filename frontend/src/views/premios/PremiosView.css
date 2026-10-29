@@ -142,7 +142,8 @@
 
 .prize-add-button,
 .prize-demo-button,
-.prize-delete-button {
+.prize-delete-button,
+.prize-quantity-button {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -169,7 +170,8 @@
 
 .prize-add-button:disabled,
 .prize-delete-button:disabled,
-.prize-demo-button:disabled {
+.prize-demo-button:disabled,
+.prize-quantity-button:disabled {
   cursor: wait;
   opacity: 0.6;
 }
@@ -279,6 +281,14 @@
   font-size: 12px;
 }
 
+.prizes-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .prizes-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -288,12 +298,19 @@
 .prize-row {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 14px 15px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.prize-row:hover {
+  border-color: #cbdbea;
+  box-shadow: 0 4px 14px rgba(19, 50, 84, 0.05);
 }
 
 .prize-glyph {
@@ -310,7 +327,7 @@
 .prize-text {
   display: grid;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 140px;
   gap: 4px;
 }
 
@@ -318,16 +335,68 @@
   color: #263b55;
   font-size: 13px;
   overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .prize-text small {
   color: #75869a;
   font-size: 11px;
+  line-height: 1.5;
+}
+
+.prize-quantity-controls {
+  display: flex;
+  flex: 1 0 100%;
+  order: 2;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 2px;
+  border-top: 1px solid #edf1f6;
+}
+
+.prize-quantity-controls input {
+  width: 68px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #d8e2ec;
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  display: none;
+}
+
+.prize-quantity-controls input:focus-visible {
+  border-color: var(--azul);
+}
+
+.prize-quantity-button {
+  min-height: 36px;
+  padding: 7px 11px;
+  border-color: #dce6f0;
+  background: #fff;
+  color: var(--azul-esc);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.prize-quantity-button:hover:not(:disabled) {
+  background: #f5f9fd;
+}
+
+.prize-quantity-button.is-remove {
+  color: #a83949;
 }
 
 .prize-state {
   display: inline-flex;
   flex: none;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 5px;
   padding: 6px 8px;
@@ -352,11 +421,43 @@
   width: 34px;
   min-height: 34px;
   flex: none;
+  flex-shrink: 0;
   padding: 0;
   border: 0;
   border-radius: 9px;
   background: #f6f8fb;
   color: #7c8ba0;
+}
+
+.prize-delete-all-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid #efc5ca;
+  border-radius: 10px;
+  background: #fff4f4;
+  color: #a83949;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.prize-delete-all-button:hover {
+  background: #fdecef;
+}
+
+.prize-delete-all-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.prize-delete-all-button .prizes-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .prize-delete-button:hover {
@@ -423,7 +524,7 @@
 
 @media (min-width: 640px) {
   .prize-form {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 120px auto;
     align-items: end;
   }
 
@@ -474,12 +575,25 @@
   }
 
   .prize-row {
-    gap: 8px;
-    padding: 12px 10px;
+    gap: 9px;
+    padding: 12px;
+  }
+
+  .prize-quantity-controls {
+    gap: 7px;
+  }
+
+  .prize-quantity-controls input {
+    width: 58px;
+  }
+
+  .prize-quantity-button {
+    padding: 7px 9px;
+    font-size: 10px;
   }
 
   .prize-state {
-    padding: 5px 6px;
+    padding: 5px 7px;
     font-size: 9px;
   }
 

@@ -2,10 +2,20 @@
 import { computed, onMounted, ref } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
+import {
+  addPrizeQuantity,
+  createPrize,
+  deleteAllPrizes,
+  deletePrize,
+  listPrizes,
+  removePrizeQuantity,
+} from '../../services/prize-service'
 import './PremiosView.css'
 
 const prizes = ref([])
 const prizeName = ref('')
+const prizeQuantity = ref(1)
+const quantityByPrize = ref({})
 const formMessage = ref('')
 const loading = ref(true)
 const loadError = ref('')
@@ -13,43 +23,23 @@ const isSaving = ref(false)
 
 const availableCount = computed(() => prizes.value.filter((prize) => !prize.utilizado).length)
 
-async function requestApi(url, options) {
-  let response
-  try {
-    response = await fetch(url, options)
-  } catch {
-    throw new Error('Não foi possível conectar à API. Verifique se o back-end está em execução.')
-  }
-  let data
-  try {
-    data = await response.json()
-  } catch {
-    throw new Error(
-      'A API retornou uma resposta inválida. Verifique se o back-end está em execução.',
-    )
-  }
-  if (!response.ok) {
-    throw new Error(
-      response.status >= 500
-        ? 'Ocorreu um erro interno na API. Tente novamente.'
-        : data.erro || 'Não foi possível concluir a operação.',
-    )
-  }
-  if (options?.method && options.method !== 'GET')
-    globalThis.window?.dispatchEvent?.(new Event('evento-atualizado'))
-  return data
-}
-
 async function loadPrizes() {
   loading.value = true
   loadError.value = ''
   try {
-    const data = await requestApi('/api/premios')
-    prizes.value = data.dados
+    prizes.value = (await listPrizes()).map(mapPrize)
   } catch (error) {
     loadError.value = error.message
   } finally {
     loading.value = false
+  }
+}
+
+function mapPrize(prize) {
+  return {
+    ...prize,
+    nome: prize.name,
+    utilizado: prize.quantityAvailable < prize.quantityTotal,
   }
 }
 
@@ -62,6 +52,11 @@ async function addPrize() {
     return
   }
 
+  if (!Number.isSafeInteger(prizeQuantity.value) || prizeQuantity.value < 1) {
+    formMessage.value = 'Informe uma quantidade inteira maior que zero.'
+    return
+  }
+
   if (cleanedName.length > 90) {
     formMessage.value = 'O nome do prêmio deve ter no máximo 90 caracteres.'
     return
@@ -70,12 +65,12 @@ async function addPrize() {
   isSaving.value = true
   formMessage.value = ''
   try {
-    await requestApi('/api/premios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome: cleanedName }),
+    await createPrize({
+      name: cleanedName,
+      quantityTotal: prizeQuantity.value,
     })
     prizeName.value = ''
+    prizeQuantity.value = 1
     await loadPrizes()
     await Swal.fire({
       icon: 'success',
@@ -92,6 +87,69 @@ async function addPrize() {
       confirmButtonText: 'Entendi',
       confirmButtonColor: '#0868af',
     })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+function quantityFor(prize) {
+  return quantityByPrize.value[prize.id] ?? 1
+}
+
+function setQuantity(prizeId, value) {
+  quantityByPrize.value[prizeId] = value === '' ? '' : Number(value)
+}
+
+async function changeQuantity(prize, direction) {
+  if (isSaving.value) return
+
+  const quantity = quantityFor(prize)
+  if (!Number.isSafeInteger(quantity) || quantity < 1) {
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Quantidade inválida',
+      text: 'Informe uma quantidade inteira maior que zero.',
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    return
+  }
+
+  if (direction === 'remove' && quantity > prize.quantityAvailable) {
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Quantidade indisponível',
+      text: `Há apenas ${prize.quantityAvailable} unidade(s) disponível(is) para retirar.`,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    return
+  }
+
+  isSaving.value = true
+  try {
+    const updatedPrize =
+      direction === 'add'
+        ? await addPrizeQuantity(prize.id, quantity)
+        : await removePrizeQuantity(prize.id, quantity)
+    Object.assign(prize, mapPrize(updatedPrize))
+    quantityByPrize.value[prize.id] = 1
+    await Swal.fire({
+      icon: 'success',
+      title: 'Estoque atualizado',
+      text: `${prize.nome}: ${prize.quantityAvailable} unidade(s) disponível(is) de ${prize.quantityTotal}.`,
+      confirmButtonText: 'Concluir',
+      confirmButtonColor: '#0868af',
+    })
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: direction === 'add' ? 'Não foi possível adicionar' : 'Não foi possível retirar',
+      text: error.message,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    await loadPrizes()
   } finally {
     isSaving.value = false
   }
@@ -126,7 +184,7 @@ async function removePrize(prize) {
 
     if (!result.isConfirmed) return
 
-    await requestApi(`/api/premios/${prize.id}`, { method: 'DELETE' })
+    await deletePrize(prize.id)
     await loadPrizes()
     await Swal.fire({
       icon: 'success',
@@ -139,6 +197,48 @@ async function removePrize(prize) {
     await Swal.fire({
       icon: 'error',
       title: 'Não foi possível excluir',
+      text: error.message,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    await loadPrizes()
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function removeAllPrizes() {
+  if (isSaving.value || prizes.value.length === 0) return
+
+  isSaving.value = true
+  try {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'Excluir todos os prêmios?',
+      text: `Os ${prizes.value.length} prêmio(s) serão excluídos. O histórico de vencedores será mantido, mas perderá a associação aos prêmios. Esta ação não pode ser desfeita.`,
+      showCancelButton: true,
+      confirmButtonText: 'Excluir todos',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b8404f',
+      cancelButtonColor: '#65758a',
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    const deletedPrizes = await deleteAllPrizes()
+    await loadPrizes()
+    await Swal.fire({
+      icon: 'success',
+      title: 'Prêmios excluídos',
+      text: `${deletedPrizes} prêmio(s) removido(s).`,
+      confirmButtonText: 'Concluir',
+      confirmButtonColor: '#0868af',
+    })
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível excluir os prêmios',
       text: error.message,
       confirmButtonText: 'Entendi',
       confirmButtonColor: '#0868af',
@@ -210,6 +310,17 @@ onMounted(loadPrizes)
               {{ formMessage }}
             </p>
           </div>
+          <div class="prize-field">
+            <label for="prize-quantity">Quantidade</label>
+            <input
+              id="prize-quantity"
+              v-model.number="prizeQuantity"
+              type="number"
+              min="1"
+              step="1"
+              :disabled="isSaving"
+            />
+          </div>
           <button class="prize-add-button" type="submit" :disabled="isSaving">
             <svg class="prizes-icon" aria-hidden="true"><use href="#prizes-gift" /></svg>
             {{ isSaving ? 'Aguarde…' : 'Adicionar' }}
@@ -217,8 +328,8 @@ onMounted(loadPrizes)
         </form>
 
         <p class="prizes-field-note">
-          Cada prêmio cadastrado representa uma unidade. A associação é opcional e acontece somente
-          no momento do sorteio.
+          Informe quantas unidades deseja cadastrar. A associação é opcional e acontece somente no
+          momento do sorteio.
         </p>
       </section>
 
@@ -247,9 +358,19 @@ onMounted(loadPrizes)
     <section class="prizes-list-section" aria-labelledby="prize-list-title">
       <header class="prizes-list-heading">
         <h2 id="prize-list-title">Prêmios cadastrados</h2>
-        <span v-if="!loading && !loadError"
-          >{{ prizes.length }} {{ prizes.length === 1 ? 'item' : 'itens' }}</span
-        >
+        <div v-if="!loading && !loadError" class="prizes-list-actions">
+          <span>{{ prizes.length }} {{ prizes.length === 1 ? 'item' : 'itens' }}</span>
+          <button
+            v-if="prizes.length"
+            class="prize-delete-all-button"
+            type="button"
+            :disabled="isSaving"
+            @click="removeAllPrizes"
+          >
+            <svg class="prizes-icon" aria-hidden="true"><use href="#prizes-trash" /></svg>
+            {{ isSaving ? 'Aguarde…' : 'Excluir todos' }}
+          </button>
+        </div>
       </header>
 
       <div v-if="loading" class="prizes-empty" role="status" aria-live="polite">
@@ -269,9 +390,10 @@ onMounted(loadPrizes)
           </span>
           <div class="prize-text">
             <strong>{{ prize.nome }}</strong>
-            <small>{{
-              prize.utilizado ? 'Utilizado em sorteio' : 'Disponível para sorteio'
-            }}</small>
+            <small>
+              {{ prize.quantityAvailable }} disponível(is) de {{ prize.quantityTotal }}
+              <template v-if="prize.utilizado"> · parte do estoque já foi utilizada</template>
+            </small>
           </div>
           <span class="prize-state" :class="{ 'is-used': prize.utilizado }">
             <svg class="prizes-icon" aria-hidden="true">
@@ -279,6 +401,35 @@ onMounted(loadPrizes)
             </svg>
             {{ prize.utilizado ? 'Utilizado' : 'Disponível' }}
           </span>
+          <div class="prize-quantity-controls" :aria-label="`Atualizar estoque de ${prize.nome}`">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              :value="quantityFor(prize)"
+              :disabled="isSaving"
+              :aria-label="`Quantidade para alterar de ${prize.nome}`"
+              @input="setQuantity(prize.id, $event.target.value)"
+            />
+            <button
+              class="prize-quantity-button"
+              type="button"
+              :disabled="isSaving"
+              :aria-label="`Adicionar quantidade ao prêmio ${prize.nome}`"
+              @click="changeQuantity(prize, 'add')"
+            >
+              + Adicionar
+            </button>
+            <button
+              class="prize-quantity-button is-remove"
+              type="button"
+              :disabled="isSaving || prize.quantityAvailable < 1"
+              :aria-label="`Retirar quantidade do prêmio ${prize.nome}`"
+              @click="changeQuantity(prize, 'remove')"
+            >
+              − Retirar
+            </button>
+          </div>
           <button
             v-if="!prize.utilizado"
             class="prize-delete-button"

@@ -1,6 +1,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { requestDrawApi } from '../../services/sorteios'
+import Swal from 'sweetalert2'
+import 'sweetalert2/dist/sweetalert2.min.css'
+import { listDrawsForDisplay } from '../../services/draw-view-model'
+import { resetDrawHistory } from '../../services/draw-sevice'
 import './VencedoresView.css'
 
 const winners = ref([])
@@ -11,6 +14,7 @@ const totalRecords = ref(0)
 const currentPage = ref(1)
 const totalPages = ref(0)
 const pageSize = 20
+const resettingWinners = ref(false)
 let viewActive = true
 let loadRevision = 0
 const winnerGroups = computed(() =>
@@ -39,48 +43,20 @@ const celebrationRound = ref(0)
 let confettiTimeout
 
 async function getHistoryPage(page, limit = pageSize) {
-  const data = await requestDrawApi(`/api/sorteios?page=${page}&limit=${limit}`)
-  const pagination = data?.paginacao
-  if (
-    !Array.isArray(data?.dados) ||
-    !pagination ||
-    pagination.pagina !== page ||
-    pagination.limite !== limit ||
-    !Number.isSafeInteger(pagination.total) ||
-    pagination.total < 0 ||
-    pagination.paginas !== Math.ceil(pagination.total / limit) ||
-    data.dados.length > limit ||
-    data.dados.length > pagination.total ||
-    new Set(data.dados.map((draw) => draw?.id)).size !== data.dados.length ||
-    !data.dados.every(
-      (draw) =>
-        draw &&
-        Number.isSafeInteger(draw.id) &&
-        draw.id > 0 &&
-        Number.isSafeInteger(draw.numero) &&
-        draw.numero > 0 &&
-        Number.isSafeInteger(draw.participanteId) &&
-        draw.participanteId > 0 &&
-        typeof draw.nome === 'string' &&
-        draw.nome.trim() &&
-        typeof draw.matricula === 'string' &&
-        ['prefeitura', 'camara'].includes(draw.origem) &&
-        typeof draw.sorteadoEm === 'string' &&
-        Number.isFinite(Date.parse(draw.sorteadoEm)) &&
-        (draw.premioNome === null || typeof draw.premioNome === 'string'),
-    )
-  ) {
-    throw new Error('A API retornou um histórico inválido. Tente atualizar os dados.')
-  }
+  const allDraws = await listDrawsForDisplay()
+  const total = allDraws.length
+  const totalPages = Math.ceil(total / limit)
+  const pagination = { pagina: page, limite: limit, total, paginas: totalPages }
+  const pageDraws = allDraws.slice((page - 1) * limit, page * limit)
   return {
-    dados: data.dados.map((draw) => ({
+    dados: pageDraws.map((draw) => ({
       id: draw.id,
       participantId: draw.participanteId,
       drawNumber: draw.numero,
       nome: draw.nome,
       matricula: draw.matricula,
       origem: draw.origem,
-      localTrabalhoDescricao: draw.localTrabalhoDescricao?.trim() || '',
+      localTrabalhoDescricao: draw.localTrabalhoDescricao,
       drawnAt: draw.sorteadoEm,
       premio: draw.premioNome ?? '',
     })),
@@ -127,6 +103,48 @@ function historyError(error) {
 function changePage(page) {
   if (loading.value || page < 1 || page > totalPages.value) return
   return loadWinners(page)
+}
+
+async function resetWinners() {
+  if (resettingWinners.value || loading.value || totalRecords.value === 0) return
+
+  const confirmation = await Swal.fire({
+    icon: 'warning',
+    title: 'Reiniciar toda a aplicação?',
+    text: 'Isso apagará o histórico de sorteios, desconfirmará todos os servidores e restaurará o estoque dos prêmios. Os cadastros de servidores e prêmios serão mantidos.',
+    showCancelButton: true,
+    confirmButtonText: 'Reiniciar aplicação',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#b8404f',
+    cancelButtonColor: '#65758a',
+    reverseButtons: true,
+  })
+
+  if (!confirmation.isConfirmed) return
+
+  resettingWinners.value = true
+  try {
+    const { deletedDraws, resetParticipants } = await resetDrawHistory()
+    await loadWinners(1)
+    await Swal.fire({
+      icon: 'success',
+      title: 'Aplicação reiniciada',
+      text: `${deletedDraws} resultado(s) removido(s) e ${resetParticipants} servidor(es) desconfirmado(s). O sistema está pronto para um novo evento.`,
+      confirmButtonText: 'Concluir',
+      confirmButtonColor: '#0868af',
+    })
+  } catch (error) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Não foi possível reiniciar',
+      text: error.message,
+      confirmButtonText: 'Entendi',
+      confirmButtonColor: '#0868af',
+    })
+    await loadWinners()
+  } finally {
+    resettingWinners.value = false
+  }
 }
 
 async function loadCelebrationPage(page) {
@@ -292,18 +310,30 @@ onBeforeUnmount(() => {
             {{ totalRecords === 1 ? 'resultado' : 'resultados' }}
           </span>
         </div>
-        <button
-          v-if="totalRecords && !loadError"
-          class="winners-celebrate-all"
-          type="button"
-          :disabled="loading || celebrationLoading"
-          @click="celebrateAll"
-        >
-          <svg class="winners-icon winners-icon-small" aria-hidden="true">
-            <use href="#winners-sparkles" />
-          </svg>
-          Celebrar todos
-        </button>
+        <div v-if="totalRecords && !loadError" class="winners-section-actions">
+          <button
+            class="winners-reset-all"
+            type="button"
+            :disabled="loading || resettingWinners || celebrationLoading"
+            @click="resetWinners"
+          >
+            <svg class="winners-icon winners-icon-small" aria-hidden="true">
+              <use href="#winners-close" />
+            </svg>
+            {{ resettingWinners ? 'Reiniciando…' : 'Reiniciar sorteios' }}
+          </button>
+          <button
+            class="winners-celebrate-all"
+            type="button"
+            :disabled="loading || celebrationLoading || resettingWinners"
+            @click="celebrateAll"
+          >
+            <svg class="winners-icon winners-icon-small" aria-hidden="true">
+              <use href="#winners-sparkles" />
+            </svg>
+            Celebrar todos
+          </button>
+        </div>
       </header>
 
       <div v-if="loading" class="winners-empty" role="status" aria-live="polite">

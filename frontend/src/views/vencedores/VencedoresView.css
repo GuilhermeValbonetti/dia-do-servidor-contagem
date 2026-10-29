@@ -123,6 +123,14 @@
   margin: 0 0 13px;
 }
 
+.winners-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .winners-section-heading > div {
   display: flex;
   align-items: baseline;
@@ -172,7 +180,8 @@
 }
 
 .winner-celebrate-button:disabled,
-.winners-celebrate-all:disabled {
+.winners-celebrate-all:disabled,
+.winners-reset-all:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -310,7 +319,8 @@
 }
 
 .winner-celebrate-button,
-.winners-celebrate-all {
+.winners-celebrate-all,
+.winners-reset-all {
   display: inline-flex;
   min-height: 38px;
   align-items: center;
@@ -330,6 +340,17 @@
 .winner-celebrate-button:hover,
 .winners-celebrate-all:hover {
   background: linear-gradient(135deg, #f5c84a, #ffdf75);
+}
+
+.winners-reset-all {
+  border-color: #efc5ca;
+  background: #fff4f4;
+  box-shadow: none;
+  color: #a83949;
+}
+
+.winners-reset-all:hover {
+  background: #fdecef;
 }
 
 .winners-celebrate-all {

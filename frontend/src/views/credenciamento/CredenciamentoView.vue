@@ -2,6 +2,13 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
+import api from '../../services/api'
+import {
+  listParticipants,
+  listRecentConfirmations,
+  toggleParticipantPresence,
+} from '../../services/participant-service'
+import { loadEventIndicators } from '../../services/event-indicators'
 import './CredenciamentoView.css'
 
 const participants = ref([])
@@ -9,7 +16,7 @@ const environmentLabel = ref('AMBIENTE NÃO CONFIRMADO')
 
 async function loadEnvironment() {
   try {
-    const health = await requestApi('/api/health')
+    const { data: health } = await api.get('/health')
     const labels = {
       oficial: 'BASE OFICIAL',
       testes: 'AMBIENTE DE TESTES',
@@ -84,70 +91,64 @@ const directoryResultsLabel = computed(() => {
   return `${total} ${noun} nesta página · ${totalRecords.value} no resultado`
 })
 
-async function requestApi(url, options) {
-  let response
-  try {
-    response = await fetch(url, options)
-  } catch {
-    throw new Error('Não foi possível conectar à API. Verifique se o back-end está em execução.')
-  }
-
-  let data
-  try {
-    data = await response.json()
-  } catch {
-    if (!response.ok && response.status >= 500) {
-      throw new Error('Não foi possível conectar à API. Verifique se o back-end está em execução.')
-    }
-    throw new Error('A API retornou uma resposta inválida.')
-  }
-
-  if (!response.ok) {
-    const messages = {
-      400: `Dados inválidos: ${data.erro || 'verifique os campos enviados.'}`,
-      404: data.erro || 'O servidor ou credenciamento não foi encontrado.',
-      409: data.erro || 'A operação não pode ser realizada devido ao estado atual do registro.',
-      500: 'Ocorreu um erro interno na API. Tente novamente.',
-    }
-    throw new Error(
-      messages[response.status] || data.erro || 'Não foi possível concluir a operação.',
-    )
-  }
-
-  if (options?.method && options.method !== 'GET')
-    globalThis.window?.dispatchEvent?.(new Event('evento-atualizado'))
-  return data
-}
-
-function mapServer(server) {
-  return {
-    ...server,
-    presente: Boolean(server.credenciado),
-    contemplado: Boolean(server.contemplado),
-  }
-}
-
 async function loadDirectory(page = currentPage.value) {
   const requestId = ++directoryRequest
   loading.value = true
   loadError.value = ''
 
   try {
-    const query = new URLSearchParams({
-      page: String(page),
-      limit: String(pageSize),
-      status: activeFilter.value,
-      busca: directorySearch.value.trim(),
-    })
-    const data = await requestApi(`/api/servidores?${query}`)
-    if (requestId !== directoryRequest) return
-    if (page > Math.max(1, data.paginacao.paginas)) {
-      return await loadDirectory(Math.max(1, data.paginacao.paginas))
+    const search = directorySearch.value.trim()
+    const normalizedSearch = search
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+    const publicAgency = normalizedSearch.includes('camara')
+      ? 'CAMARA'
+      : normalizedSearch.includes('prefeitura')
+        ? 'PREFEITURA'
+        : undefined
+    const requestSearch = publicAgency ? '' : search
+    const filters = {
+      present:
+        activeFilter.value === 'pending'
+          ? false
+          : ['confirmed', 'winner'].includes(activeFilter.value)
+            ? true
+            : undefined,
+      publicAgency,
+      search: requestSearch || undefined,
     }
-    participants.value = data.dados.map(mapServer)
-    currentPage.value = data.paginacao.pagina
-    totalPages.value = data.paginacao.paginas
-    totalRecords.value = data.paginacao.total
+    const fetchPage = (pageNumber, limit) =>
+      listParticipants({ ...filters, page: pageNumber, pageSize: limit })
+
+    if (['confirmed', 'winner'].includes(activeFilter.value)) {
+      const firstPage = await fetchPage(1, 100)
+      const allParticipants = [...firstPage.participantes]
+      for (let nextPage = 2; nextPage <= firstPage.paginacao.totalPages; nextPage += 1) {
+        const result = await fetchPage(nextPage, 100)
+        allParticipants.push(...result.participantes)
+      }
+      if (requestId !== directoryRequest) return
+      const filtered = allParticipants
+        .map(mapParticipant)
+        .filter((participant) =>
+          activeFilter.value === 'winner' ? participant.contemplado : !participant.contemplado,
+        )
+      totalRecords.value = filtered.length
+      totalPages.value = Math.ceil(filtered.length / pageSize)
+      currentPage.value = Math.min(page, Math.max(totalPages.value, 1))
+      participants.value = filtered.slice(
+        (currentPage.value - 1) * pageSize,
+        currentPage.value * pageSize,
+      )
+    } else {
+      const result = await fetchPage(page, pageSize)
+      if (requestId !== directoryRequest) return
+      participants.value = result.participantes.map(mapParticipant)
+      currentPage.value = result.paginacao.page
+      totalPages.value = result.paginacao.totalPages
+      totalRecords.value = result.total
+    }
   } catch (error) {
     if (requestId === directoryRequest) loadError.value = error.message
   } finally {
@@ -155,10 +156,23 @@ async function loadDirectory(page = currentPage.value) {
   }
 }
 
+function mapParticipant(participant) {
+  return {
+    ...participant,
+    nome: participant.name,
+    matricula: participant.registrationNumber ?? '',
+    origem: participant.publicAgency === 'CAMARA' ? 'camara' : 'prefeitura',
+    localTrabalhoDescricao: participant.department ?? '',
+    confirmadoEm: participant.confirmedAt,
+    presente: participant.present,
+    contemplado: participant.isWinner,
+  }
+}
+
 async function loadIndicators() {
   indicatorsError.value = ''
   try {
-    indicatorData.value = await requestApi('/api/credenciamentos/indicadores')
+    indicatorData.value = await loadEventIndicators()
     indicatorsLoaded.value = true
   } catch (error) {
     indicatorsError.value = error.message
@@ -182,9 +196,10 @@ async function changePage(page) {
 async function loadRecentConfirmations() {
   recentError.value = ''
   try {
-    const data = await requestApi('/api/credenciamentos/recentes?limit=8')
-    latestConfirmations.value = data.dados.map(mapServer)
+    const participants = await listRecentConfirmations()
+    latestConfirmations.value = participants.map(mapParticipant)
   } catch (error) {
+    latestConfirmations.value = []
     recentError.value = error.message
   }
 }
@@ -267,13 +282,9 @@ async function confirmPresence(person) {
     })
     if (!confirmation.isConfirmed) return
 
-    await requestApi('/api/credenciamentos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ servidorId: person.id, matricula: person.matricula }),
-    })
-    person.presente = true
-    person.credenciado = true
+    const updatedParticipant = await toggleParticipantPresence(person.id)
+    person.presente = updatedParticipant.present
+    person.contemplado = updatedParticipant.isWinner
     await refreshData()
     await Swal.fire({
       icon: 'success',
@@ -326,7 +337,7 @@ async function undoPresence(person) {
     })
     if (!result.isConfirmed) return
 
-    await requestApi(`/api/credenciamentos/${person.id}`, { method: 'DELETE' })
+    await toggleParticipantPresence(person.id)
     await refreshData()
     await Swal.fire({
       icon: 'success',
@@ -645,7 +656,9 @@ onMounted(refreshData)
               </button>
             </article>
           </div>
-          <div v-else class="checkin-empty">Nenhuma presença confirmada.</div>
+          <div v-else class="checkin-empty">
+            Nenhuma confirmação com horário registrado.
+          </div>
         </section>
 
         <aside class="checkin-tip">

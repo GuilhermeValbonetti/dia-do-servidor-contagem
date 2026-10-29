@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { requestDrawApi } from '../../services/sorteios'
+import { listDrawsForDisplay } from '../../services/draw-view-model'
 import brasao from '../../assets/images/brasao-contagem.png'
 import './TelaoView.css'
 
@@ -161,8 +161,15 @@ async function handleProjectionMessage({ data }) {
   if (candidate) {
     if (!isValidDraw(candidate)) return
     try {
-      confirmedDraw =
-        verifiedDraws.get(candidate.id) ?? (await requestDrawApi(`/api/sorteios/${candidate.id}`))
+      confirmedDraw = verifiedDraws.get(candidate.id)
+      if (!confirmedDraw) {
+        const history = await listDrawsForDisplay()
+        const matchingDraw = history.find((draw) => draw.id === candidate.id)
+        if (!matchingDraw || matchingDraw.participanteId !== candidate.participanteId) {
+          throw new Error('O resultado consultado não corresponde ao sorteio apresentado.')
+        }
+        confirmedDraw = matchingDraw
+      }
       if (!viewActive || revision !== messageRevision) return
       verifiedDraws.set(confirmedDraw.id, confirmedDraw)
       awaitingApiSync = false
@@ -286,14 +293,14 @@ function markConnectionLost() {
 async function recoverLastDraw() {
   const revision = messageRevision
   try {
-    const history = await requestDrawApi('/api/sorteios?limit=1')
+    const history = await listDrawsForDisplay()
     if (
       viewActive &&
       !sessionEnded.value &&
       revision === messageRevision &&
       phase.value === 'disconnected'
     ) {
-      lastWinner.value = history.dados[0] ?? null
+      lastWinner.value = history[0] ?? null
     }
   } catch {
     if (viewActive && !sessionEnded.value && revision === messageRevision)
