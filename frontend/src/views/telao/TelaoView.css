@@ -415,6 +415,20 @@
   will-change: transform, opacity;
 }
 
+/* Dados do ganhador em letras maiúsculas no Telão */
+.phase-winner .projection-headline,
+.phase-winner .projection-subtitle,
+.phase-winner .projection-workplace,
+.phase-winner .projection-prize {
+  text-transform: uppercase;
+}
+
+/* Último contemplado durante a preparação ou desconexão */
+.projection-last-winner,
+.projection-last-winner strong {
+  text-transform: uppercase;
+}
+
 @keyframes projection-slow-turn {
   to {
     transform: rotate(360deg);
