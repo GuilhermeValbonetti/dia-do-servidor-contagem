@@ -1,4 +1,4 @@
-# Distribuir o Dia do Servidor no Windows
+ # Distribuir o Dia do Servidor no Windows
 
 O pacote é destinado ao Windows de 64 bits. O computador que prepara o pacote precisa de internet; o computador que o executa não precisa ter Node.js ou .NET instalado. O backend é executado pelo `tsx` incluído no pacote para carregar o cliente Prisma gerado em TypeScript.
 

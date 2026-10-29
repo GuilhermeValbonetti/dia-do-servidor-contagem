@@ -1,10 +1,12 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { prisma } from '../database/prisma.js';
 import { AppError } from '../errors/app-error.js';
+import { isProjectionDrawing, startProjection, resetProjection } from './projection.service.js';
 const DRAW_SESSION_TIMEOUT_MS = 60_000;
 const DRAW_SESSION_RETENTION_MS = 5 * 60_000;
 const drawSessions = new Map();
 let activeDrawSessionId = null;
+let selectingWinner = false;
 function isUniqueConstraintError(error) {
     return (typeof error === 'object' &&
         error !== null &&
@@ -22,6 +24,7 @@ const drawSelect = {
             name: true,
             registrationNumber: true,
             publicAgency: true,
+            department: true,
             present: true,
             participationNumber: true,
         },
@@ -34,12 +37,15 @@ const drawSelect = {
     },
 };
 export async function drawRandomWinner(prizeId) {
+    if (selectingWinner || isProjectionDrawing())
+        throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
     if (prizeId !== undefined &&
         (!Number.isSafeInteger(prizeId) || prizeId <= 0)) {
         throw new AppError(400, 'ID do prêmio inválido.');
     }
+    selectingWinner = true;
     try {
-        return await prisma.$transaction(async (transaction) => {
+        const result = await prisma.$transaction(async (transaction) => {
             const eligibleParticipants = await transaction.participant.findMany({
                 where: {
                     present: true,
@@ -77,20 +83,26 @@ export async function drawRandomWinner(prizeId) {
                     throw new AppError(409, 'Não há unidades disponíveis deste prêmio.');
                 }
             }
-            return transaction.draw.create({
+            const draw = await transaction.draw.create({
                 data: {
                     participantId: selectedParticipant.id,
                     ...(prizeId !== undefined ? { prizeId } : {}),
                 },
                 select: drawSelect,
             });
+            return { draw, drawNumber: await transaction.draw.count() };
         });
+        startProjection(result.draw, result.drawNumber);
+        return result.draw;
     }
     catch (error) {
         if (isUniqueConstraintError(error)) {
             throw new AppError(409, 'O participante selecionado já ganhou anteriormente. Tente realizar o sorteio novamente.');
         }
         throw error;
+    }
+    finally {
+        selectingWinner = false;
     }
 }
 function validatePrizeId(prizeId) {
@@ -109,6 +121,8 @@ function scheduleSessionCleanup(session) {
     session.timer.unref();
 }
 export async function startDrawSession(prizeId) {
+    if (isProjectionDrawing())
+        throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
     validatePrizeId(prizeId);
     if (activeDrawSessionId) {
         const activeSession = drawSessions.get(activeDrawSessionId);
@@ -229,6 +243,8 @@ export async function listDraws() {
     });
 }
 export async function resetDrawHistory() {
+    if (selectingWinner || isProjectionDrawing())
+        throw new AppError(409, 'Aguarde a apresentação do sorteio em andamento.');
     const activeSession = activeDrawSessionId
         ? drawSessions.get(activeDrawSessionId)
         : undefined;
@@ -237,7 +253,7 @@ export async function resetDrawHistory() {
         activeSession?.status === 'completing') {
         throw new AppError(409, 'Finalize ou cancele o sorteio em andamento antes de reiniciar.');
     }
-    return prisma.$transaction(async (transaction) => {
+    const result = await prisma.$transaction(async (transaction) => {
         const prizes = await transaction.prize.findMany({
             select: { id: true, quantityTotal: true },
         });
@@ -264,6 +280,8 @@ export async function resetDrawHistory() {
         }
         return { deletedDraws, resetParticipants };
     });
+    resetProjection();
+    return result;
 }
 export async function getDrawByParticipantId(participantId) {
     if (!Number.isSafeInteger(participantId) || participantId <= 0) {

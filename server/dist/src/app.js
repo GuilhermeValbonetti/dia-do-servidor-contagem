@@ -9,12 +9,16 @@ import notFoundHandler from './middlewares/not-found-handler.js';
 import participantsRoutes from './routes/participants.routes.js';
 import prizesRoutes from './routes/prizes.routes.js';
 import drawsRoutes from './routes/draws.routes.js';
+import projectionRoutes from './routes/projection.routes.js';
+import { publishUpdates, subscribeToUpdates } from './middlewares/live-updates.js';
 const app = express();
 // Middlewares
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(cors({
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+    origin: process.env.CLIENT_ORIGIN
+        ? process.env.CLIENT_ORIGIN.split(',').map((origin) => origin.trim())
+        : false,
 }));
 // Rota para verificar se a API está funcionando
 app.get('/api/health', (_req, res) => {
@@ -24,9 +28,12 @@ app.get('/api/health', (_req, res) => {
     });
 });
 // Rotas da API
+app.get('/api/events', subscribeToUpdates);
+app.use('/api', publishUpdates);
 app.use('/api/participants', participantsRoutes);
 app.use('/api/prizes', prizesRoutes);
 app.use('/api/draws', drawsRoutes);
+app.use('/api/projection', projectionRoutes);
 const frontendDirectory = resolve(process.env.FRONTEND_DIST_DIR ?? resolve(process.cwd(), '../frontend/dist'));
 if (existsSync(frontendDirectory)) {
     app.use(express.static(frontendDirectory));
