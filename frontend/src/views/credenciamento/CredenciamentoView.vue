@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import api from '../../services/api'
@@ -279,7 +279,13 @@ async function confirmPresence(person) {
     const updatedParticipant = await toggleParticipantPresence(person.id)
     person.presente = updatedParticipant.present
     person.contemplado = updatedParticipant.isWinner
-    await refreshData()
+    directorySearch.value = ''
+    agencyFilter.value = ''
+    activeFilter.value = 'all'
+    currentPage.value = 1
+    await nextTick()
+    clearTimeout(searchTimer)
+    await refreshData(1)
     await Swal.fire({
       icon: 'success',
       title: 'Presença confirmada',
