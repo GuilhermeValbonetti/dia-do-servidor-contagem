@@ -692,21 +692,58 @@
 .checkin-agency-filter {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: #40546b;
-  font-size: 13px;
-  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
-.checkin-agency-filter select {
-  min-height: 40px;
+.checkin-agency-label {
+  color: #60738a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.checkin-agency-options {
+  display: flex;
   max-width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d5dee8;
-  border-radius: 8px;
-  background: #fff;
-  color: #243b53;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid #e1e9f1;
+  border-radius: 13px;
+  background: #f2f6fa;
+}
+
+.checkin-agency-options button {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #536981;
   font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, box-shadow 150ms;
+}
+
+.checkin-agency-options button:hover {
+  background: #e5eef7;
+  color: #075b9f;
+}
+
+.checkin-agency-options button.active {
+  border-color: #d6e5f1;
+  background: #fff;
+  color: #075b9f;
+  box-shadow: 0 2px 5px #1c466514;
+}
+
+.checkin-agency-options button:focus-visible {
+  outline: 3px solid #f1c85d;
+  outline-offset: 2px;
 }
 
 .checkin-filter {

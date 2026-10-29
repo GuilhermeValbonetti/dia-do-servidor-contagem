@@ -445,14 +445,25 @@ onMounted(refreshData)
                 maxlength="200"
               />
             </label>
-            <label class="checkin-agency-filter">
-              Instituição
-              <select v-model="agencyFilter">
-                <option value="">Todas as instituições</option>
-                <option value="PREFEITURA">Prefeitura</option>
-                <option value="CAMARA">Câmara</option>
-              </select>
-            </label>
+            <div class="checkin-agency-filter" role="group" aria-label="Filtrar por instituição">
+              <span class="checkin-agency-label">Instituição</span>
+              <div class="checkin-agency-options">
+                <button
+                  v-for="agency in [
+                    { value: '', label: 'Todas' },
+                    { value: 'PREFEITURA', label: 'Prefeitura' },
+                    { value: 'CAMARA', label: 'Câmara' },
+                  ]"
+                  :key="agency.value"
+                  type="button"
+                  :class="{ active: agencyFilter === agency.value }"
+                  :aria-pressed="agencyFilter === agency.value"
+                  @click="agencyFilter = agency.value"
+                >
+                  {{ agency.label }}
+                </button>
+              </div>
+            </div>
             <div class="checkin-filter" role="group" aria-label="Filtrar servidores por situação">
               <button
                 v-for="filter in filters"
